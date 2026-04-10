@@ -1,231 +1,283 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-import plotly.express as px
 import yfinance as yf
-from st_aggrid import AgGrid, GridOptionsBuilder
+import plotly.express as px
+from PIL import Image, ImageDraw
+import io
 
-st.set_page_config(layout="wide")
+st.set_page_config(layout="centered")
 
-# ---------------------------------------------------
-# HEADER
-# ---------------------------------------------------
+# --------------------------------------------------
+# PREMIUM DARK + GOLD STYLE
+# --------------------------------------------------
 
-st.markdown(
-"""
+st.markdown("""
 <style>
-.main-title {
-font-size:42px;
-font-weight:700;
+
+body{
+background: radial-gradient(circle at top,#0a0f1a,#020617);
 color:white;
-text-align:center;
 }
-.subtitle {
-font-size:18px;
-text-align:center;
-color:#d9b46c;
+
+.block-container{
+max-width:900px;
+padding-top:1rem;
 }
-.metric-box {
-background-color:#1f2b3a;
-padding:15px;
-border-radius:10px;
+
+.banner{
+background:linear-gradient(145deg,#111827,#020617);
+border-radius:14px;
+padding:16px;
 text-align:center;
+
+box-shadow:
+0 0 40px rgba(255,200,0,0.25),
+inset 0 0 15px rgba(255,200,0,0.08);
+
+margin-bottom:18px;
 }
+
+.banner-title{
+font-size:13px;
+color:#9ca3af;
+letter-spacing:3px;
+}
+
+.banner-value{
+font-size:28px;
+font-weight:700;
+color:#ffd166;
+margin-top:6px;
+text-shadow:0 0 12px rgba(255,200,0,0.6);
+}
+
+.card{
+background:linear-gradient(145deg,#1e293b,#0f172a);
+border-radius:14px;
+padding:16px;
+
+box-shadow:
+0 0 30px rgba(255,200,0,0.18),
+inset 0 0 10px rgba(255,200,0,0.05);
+
+margin-bottom:12px;
+}
+
+.metric{
+font-size:32px;
+font-weight:700;
+color:#ffd166;
+text-align:center;
+
+text-shadow:0 0 10px rgba(255,200,0,0.5);
+}
+
+.section{
+font-size:22px;
+font-weight:700;
+color:#ffd166;
+margin-top:24px;
+margin-bottom:10px;
+}
+
 </style>
-""",
-unsafe_allow_html=True
+""",unsafe_allow_html=True)
+
+# --------------------------------------------------
+# LIVE MARKET DATA
+# --------------------------------------------------
+
+ticker = yf.Ticker("UOG.L")
+
+try:
+    price = ticker.history(period="1d")["Close"].iloc[-1]
+except:
+    price = 0.0023
+
+shares_outstanding = 4.66e9
+market_cap = price * shares_outstanding
+
+# --------------------------------------------------
+# MARKET BANNER
+# --------------------------------------------------
+
+st.markdown(f"""
+<div class="banner">
+
+<div class="banner-title">LIVE UOG MARKET</div>
+
+<div class="banner-value">
+{price*100:.2f} GBX | £{market_cap:,.0f} | 4.66B shares
+</div>
+
+</div>
+""",unsafe_allow_html=True)
+
+# --------------------------------------------------
+# PRICE CHART
+# --------------------------------------------------
+
+data = ticker.history(period="1mo")
+
+fig = px.line(data,y="Close")
+
+fig.update_traces(
+line_color="#ffd166",
+line_width=3
 )
 
-st.markdown(
-'<div class="main-title">Walton-Morant Exploration Intelligence Hub</div>',
-unsafe_allow_html=True
+fig.update_layout(
+template="plotly_dark",
+plot_bgcolor="#020617",
+paper_bgcolor="#020617",
+height=240
 )
 
-st.markdown(
-'<div class="subtitle">Interactive dashboard for investment analysis</div>',
-unsafe_allow_html=True
+st.plotly_chart(fig,use_container_width=True)
+
+# --------------------------------------------------
+# BASIN GRAPHIC
+# --------------------------------------------------
+
+st.image("hero.png",use_column_width=True)
+
+# --------------------------------------------------
+# SCENARIO LAB
+# --------------------------------------------------
+
+st.markdown('<div class="section">Scenario Lab</div>',unsafe_allow_html=True)
+
+cos = st.slider("Chance of Success (COS)",10,50,35)
+
+share_price = st.slider("Share Price Scenario (pence)",0.1,20.0,6.0)
+
+shares_owned = st.slider(
+"Personal Shares Owned",
+1_000_000,
+250_000_000,
+1_000_000,
+step=500_000
 )
 
-st.divider()
+# --------------------------------------------------
+# CALCULATIONS
+# --------------------------------------------------
 
-# ---------------------------------------------------
-# GLOBAL ASSUMPTIONS
-# ---------------------------------------------------
+scenario_market_cap = (share_price/100) * shares_outstanding
+personal_value = shares_owned * (share_price/100)
+multiple = share_price / 0.23
 
-st.sidebar.header("Model Assumptions")
+# --------------------------------------------------
+# RESULTS
+# --------------------------------------------------
 
-value_per_barrel = st.sidebar.slider("Value per Barrel ($)",3,12,5)
+st.markdown('<div class="section">Scenario Results</div>',unsafe_allow_html=True)
 
-shares_outstanding = st.sidebar.number_input(
-"Shares Outstanding",
-value=4.66e9
-)
-
-usd_gbp = st.sidebar.slider("USD → GBP",0.6,1.0,0.8)
-
-# ---------------------------------------------------
-# TOP DASHBOARD ROW
-# ---------------------------------------------------
-
-col1,col2,col3 = st.columns(3)
-
-# Basin summary
+col1,col2 = st.columns(2)
 
 with col1:
-
-    st.subheader("Basin Resource Summary")
-
-    drill_ready = st.slider("Drill Ready Prospects (MMBO)",200,1200,850)
-
-    basin_total = st.slider("Total Basin Potential (Billion bbl)",2.0,10.0,7.0)
-
-    basin_df = pd.DataFrame({
-    "Category":["Drill Ready","Remaining Basin"],
-    "Value":[drill_ready/1000, basin_total - (drill_ready/1000)]
-    })
-
-    fig = px.bar(
-    basin_df,
-    x="Category",
-    y="Value",
-    title="Basin Potential (Billion Barrels)"
-    )
-
-    st.plotly_chart(fig,use_container_width=True)
-
-# Market price
+    st.markdown(f"""
+    <div class="card">
+    <div class="metric">£{scenario_market_cap:,.0f}</div>
+    <div style="text-align:center">Market Cap Scenario</div>
+    </div>
+    """,unsafe_allow_html=True)
 
 with col2:
+    st.markdown(f"""
+    <div class="card">
+    <div class="metric">£{personal_value:,.0f}</div>
+    <div style="text-align:center">Personal Holding Value</div>
+    </div>
+    """,unsafe_allow_html=True)
 
-    st.subheader("UOG Market Price")
+# --------------------------------------------------
+# RERATING BAR
+# --------------------------------------------------
 
-    try:
+st.markdown('<div class="section">Multiple-X Re-Rating</div>',unsafe_allow_html=True)
 
-        ticker = yf.Ticker("UOG.L")
-        hist = ticker.history(period="1mo")
+st.progress(min(multiple/30,1.0))
 
-        st.metric("Current Price (£)",round(hist["Close"].iloc[-1],4))
+st.write(f"**{multiple:.1f}× vs current price (0.23p)**")
 
-        st.line_chart(hist["Close"])
+# --------------------------------------------------
+# COS → VALUATION CURVE
+# --------------------------------------------------
 
-    except:
+cos_values = list(range(10,51))
 
-        st.write("Market data unavailable")
+values=[]
 
-# Scenario simulator
+for c in cos_values:
+    cap = scenario_market_cap * (c/50)
+    values.append(cap)
 
-with col3:
-
-    st.subheader("Quick Scenario Simulator")
-
-    discovery_size = st.slider("Discovery Size (MMBO)",100,2000,300)
-
-    discovery_value = st.slider("Value per Barrel ($)",3,12,5)
-
-    cos = st.slider("Chance of Success (%)",5,40,20)
-
-    estimated_value = discovery_size * discovery_value
-    risked_value = estimated_value * (cos/100)
-
-    st.metric("Estimated Discovery Value ($M)",estimated_value)
-    st.metric("Risked Discovery Value ($M)",risked_value)
-
-# ---------------------------------------------------
-# PROSPECT PORTFOLIO
-# ---------------------------------------------------
-
-st.divider()
-
-st.header("Walton-Morant Risked Prospects")
-
-prospects = pd.DataFrame({
-
-"Prospect":["Colibri","Oriole","Streamertail"],
-"Resource_MMBO":[406,220,221],
-"COS":[0.19,0.16,0.15]
-
+df = pd.DataFrame({
+"COS":cos_values,
+"MarketCap":values
 })
 
-gb = GridOptionsBuilder.from_dataframe(prospects)
-gb.configure_default_column(editable=True)
+fig2 = px.line(df,x="COS",y="MarketCap")
 
-grid = AgGrid(
-prospects,
-gridOptions=gb.build(),
-update_mode="MODEL_CHANGED"
-)
+fig2.update_traces(line_color="#ffd166",line_width=3)
 
-prospects = pd.DataFrame(grid["data"])
-
-prospects["Unrisked_Value_$M"] = prospects["Resource_MMBO"] * value_per_barrel
-prospects["Risked_Value_$M"] = prospects["Unrisked_Value_$M"] * prospects["COS"]
-
-portfolio_value = prospects["Risked_Value_$M"].sum()
-
-st.metric("Total Risked Prospect Value ($M)",round(portfolio_value,1))
-
-fig2 = px.bar(
-prospects,
-x="Prospect",
-y="Risked_Value_$M",
-title="Risked Prospect Values"
+fig2.update_layout(
+template="plotly_dark",
+plot_bgcolor="#020617",
+paper_bgcolor="#020617",
+height=300
 )
 
 st.plotly_chart(fig2,use_container_width=True)
 
-# ---------------------------------------------------
-# MARKET CAP VS BASIN SCALE
-# ---------------------------------------------------
+# --------------------------------------------------
+# QUICK SCENARIOS
+# --------------------------------------------------
 
-st.divider()
+col1,col2,col3 = st.columns(3)
 
-st.header("Market Cap vs Basin Scale")
+col1.button("5p → £233M")
+col2.button("10p → £466M")
+col3.button("15p → £699M")
 
-market_cap = st.slider("Market Cap (£M)",1,500,7)
+# --------------------------------------------------
+# SHAREABLE SCENARIO CARD
+# --------------------------------------------------
 
-comparison = pd.DataFrame({
+st.markdown('<div class="section">Share Scenario</div>',unsafe_allow_html=True)
 
-"Metric":["Market Cap (£M)","Drill Ready (MMBO)","Basin Potential (MMBO)"],
-"Value":[market_cap,drill_ready,basin_total*1000]
+def create_scenario_card():
 
-})
+    img = Image.new("RGB",(800,800),(10,15,25))
+    draw = ImageDraw.Draw(img)
 
-fig3 = px.bar(comparison,x="Metric",y="Value")
+    draw.text((50,50),"Walton Morant Scenario",fill=(255,200,80))
 
-st.plotly_chart(fig3,use_container_width=True)
+    draw.text((50,150),f"COS: {cos}%",fill="white")
+    draw.text((50,200),f"Share Price: {share_price}p",fill="white")
+    draw.text((50,250),f"Shares Owned: {shares_owned:,}",fill="white")
 
-# ---------------------------------------------------
-# SHARE VALUE
-# ---------------------------------------------------
+    draw.text((50,380),"Market Cap Scenario",fill=(255,200,80))
+    draw.text((50,420),f"£{scenario_market_cap:,.0f}",fill="white")
 
-st.divider()
+    draw.text((50,520),"Personal Holding Value",fill=(255,200,80))
+    draw.text((50,560),f"£{personal_value:,.0f}",fill="white")
 
-st.header("Personal Share Value")
+    draw.text((50,660),f"{multiple:.1f}× vs current price",fill="white")
 
-shares_owned = st.number_input("Shares Owned",value=18500000)
+    buffer = io.BytesIO()
+    img.save(buffer,"PNG")
 
-future_price = st.slider("Future Share Price (pence)",0.1,20.0,2.0)
+    return buffer
 
-holding_value = shares_owned * (future_price/100)
+if st.button("Generate Shareable Scenario Card"):
 
-st.metric("Holding Value (£)",f"{holding_value:,.0f}")
+    img = create_scenario_card()
 
-# ---------------------------------------------------
-# TAKEOVER SCENARIOS
-# ---------------------------------------------------
-
-st.divider()
-
-st.header("Takeover Scenarios")
-
-take100 = (100e6 / shares_outstanding)*100
-take300 = (300e6 / shares_outstanding)*100
-
-table = pd.DataFrame({
-
-"Company Value":["£100M","£300M"],
-"Share Price (pence)":[take100,take300]
-
-})
-
-st.table(table)
+    st.download_button(
+        label="Download Scenario Image",
+        data=img,
+        file_name="uog_scenario.png",
+        mime="image/png"
+    )
