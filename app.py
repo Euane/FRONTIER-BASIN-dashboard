@@ -135,6 +135,7 @@ timeframe_map = {
 "1d":"1d",
 "2d":"2d",
 "3d":"3d",
+"1w":"5d",
 "1w":"7d",
 "2w":"14d",
 "3w":"21d",
@@ -181,7 +182,7 @@ if menu == "Dashboard":
 
     if show_rerating:
 
-        rerating_levels = [1.5,2,2.5,3,4,5,7,10,15,20]
+        rerating_levels = [1.5,2,2.5,3,4,5,7,10,15,20,25]
 
         for level in rerating_levels:
 
@@ -284,9 +285,9 @@ elif menu == "Market Activity":
 
     def classify(row):
         if row["Close"] > row["Prev"]:
-            return "BUY"
+            return "Buy"
         elif row["Close"] < row["Prev"]:
-            return "SELL"
+            return "Sell"
         return "NEUTRAL"
 
     trades["Side"] = trades.apply(classify, axis=1)
