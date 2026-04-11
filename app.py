@@ -1,282 +1,343 @@
 import streamlit as st
-import pandas as pd
 import yfinance as yf
-import plotly.express as px
+import plotly.graph_objects as go
+import numpy as np
 from PIL import Image, ImageDraw
 import io
+import os
 
-st.set_page_config(layout="centered")
+# --------------------------------
+# PAGE CONFIG
+# --------------------------------
 
-# --------------------------------------------------
-# PREMIUM DARK + GOLD STYLE
-# --------------------------------------------------
+st.set_page_config(
+    page_title="UOG Scenario Tool",
+    page_icon="icon.png",
+    layout="wide"
+)
+
+# --------------------------------
+# DASHBOARD STYLE
+# --------------------------------
 
 st.markdown("""
 <style>
 
 body{
-background: radial-gradient(circle at top,#0a0f1a,#020617);
+background-color:#020617;
 color:white;
 }
 
-.block-container{
-max-width:900px;
-padding-top:1rem;
+h1,h2,h3{
+color:#FFD700;
 }
 
-.banner{
-background:linear-gradient(145deg,#111827,#020617);
-border-radius:14px;
-padding:16px;
-text-align:center;
-
-box-shadow:
-0 0 40px rgba(255,200,0,0.25),
-inset 0 0 15px rgba(255,200,0,0.08);
-
-margin-bottom:18px;
-}
-
-.banner-title{
-font-size:13px;
-color:#9ca3af;
-letter-spacing:3px;
-}
-
-.banner-value{
-font-size:28px;
-font-weight:700;
-color:#ffd166;
-margin-top:6px;
-text-shadow:0 0 12px rgba(255,200,0,0.6);
-}
-
-.card{
-background:linear-gradient(145deg,#1e293b,#0f172a);
-border-radius:14px;
-padding:16px;
-
-box-shadow:
-0 0 30px rgba(255,200,0,0.18),
-inset 0 0 10px rgba(255,200,0,0.05);
-
-margin-bottom:12px;
-}
-
-.metric{
-font-size:32px;
-font-weight:700;
-color:#ffd166;
-text-align:center;
-
-text-shadow:0 0 10px rgba(255,200,0,0.5);
-}
-
-.section{
-font-size:22px;
-font-weight:700;
-color:#ffd166;
-margin-top:24px;
-margin-bottom:10px;
+div[data-testid="stMetric"]{
+background:#111827;
+border-radius:10px;
+padding:10px;
+border:1px solid rgba(255,215,0,0.2);
 }
 
 </style>
-""",unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
-# --------------------------------------------------
-# LIVE MARKET DATA
-# --------------------------------------------------
+# --------------------------------
+# HERO SLIDE CAROUSEL
+# --------------------------------
+
+slides_folder = "hero"
+slides = sorted(os.listdir(slides_folder))
+
+if "slide_index" not in st.session_state:
+    st.session_state.slide_index = 0
+
+current_slide = slides[st.session_state.slide_index]
+
+st.image(f"{slides_folder}/{current_slide}", use_column_width=True)
+
+col1, col2, col3 = st.columns([1,3,1])
+
+with col1:
+    if st.button("◀"):
+        st.session_state.slide_index = (
+            st.session_state.slide_index - 1
+        ) % len(slides)
+
+with col3:
+    if st.button("▶"):
+        st.session_state.slide_index = (
+            st.session_state.slide_index + 1
+        ) % len(slides)
+
+# --------------------------------
+# MARKET DATA
+# --------------------------------
 
 ticker = yf.Ticker("UOG.L")
 
-try:
-    price = ticker.history(period="1d")["Close"].iloc[-1]
-except:
-    price = 0.0023
+data = ticker.history(period="1d")
+
+price = data["Close"].iloc[-1]
 
 shares_outstanding = 4.66e9
+
 market_cap = price * shares_outstanding
 
-# --------------------------------------------------
-# MARKET BANNER
-# --------------------------------------------------
+price_p = price * 100
 
-st.markdown(f"""
-<div class="banner">
+st.title("LIVE UOG MARKET")
 
-<div class="banner-title">LIVE UOG MARKET</div>
+st.write(f"{price_p:.3f}p ▲ | £{market_cap/1e6:.1f}M mcap | 4.66B shares")
 
-<div class="banner-value">
-{price*100:.2f} GBX | £{market_cap:,.0f} | 4.66B shares
-</div>
+# --------------------------------
+# CHART CONTROLS
+# --------------------------------
 
-</div>
-""",unsafe_allow_html=True)
+show_chart = st.toggle("Show Price Chart", True)
 
-# --------------------------------------------------
-# PRICE CHART
-# --------------------------------------------------
-
-data = ticker.history(period="1mo")
-
-fig = px.line(data,y="Close")
-
-fig.update_traces(
-line_color="#ffd166",
-line_width=3
+timeframe = st.radio(
+"Timeframe",
+["Daily","Weekly","1M","3M","6M","1Y","2Y"],
+horizontal=True
 )
 
-fig.update_layout(
-template="plotly_dark",
-plot_bgcolor="#020617",
-paper_bgcolor="#020617",
-height=240
-)
+if timeframe=="Daily":
+    hist=ticker.history(period="1d",interval="5m")
+elif timeframe=="Weekly":
+    hist=ticker.history(period="7d",interval="30m")
+elif timeframe=="1M":
+    hist=ticker.history(period="1mo")
+elif timeframe=="3M":
+    hist=ticker.history(period="3mo")
+elif timeframe=="6M":
+    hist=ticker.history(period="6mo")
+elif timeframe=="1Y":
+    hist=ticker.history(period="1y")
+else:
+    hist=ticker.history(period="2y")
 
-st.plotly_chart(fig,use_container_width=True)
-
-# --------------------------------------------------
-# BASIN GRAPHIC
-# --------------------------------------------------
-
-st.image("hero.png",use_column_width=True)
-
-# --------------------------------------------------
+# --------------------------------
 # SCENARIO LAB
-# --------------------------------------------------
+# --------------------------------
 
-st.markdown('<div class="section">Scenario Lab</div>',unsafe_allow_html=True)
+with st.expander("Scenario Lab", True):
 
-cos = st.slider("Chance of Success (COS)",10,50,35)
+    rerate = st.slider(
+        "Re-Rating Multiple",
+        1.0,
+        30.0,
+        5.0,
+        0.1
+    )
 
-share_price = st.slider("Share Price Scenario (pence)",0.1,20.0,6.0)
+    scenario_price_p = price_p * rerate
 
-shares_owned = st.slider(
-"Personal Shares Owned",
-1_000_000,
-250_000_000,
-1_000_000,
-step=500_000
+    scenario_price_slider = st.slider(
+        "Scenario Share Price (p)",
+        0.1,
+        500.0,
+        scenario_price_p
+    )
+
+# --------------------------------
+# DISCOVERY SIMULATOR
+# --------------------------------
+
+with st.expander("Walton Morant Discovery Simulator", True):
+
+    discovery_size = st.slider(
+        "Discovery Size (MMBO)",
+        100,
+        5000,
+        1000
+    )
+
+    value_per_barrel = st.slider(
+        "Value per Barrel ($)",
+        5,
+        80,
+        20
+    )
+
+    ownership = st.slider(
+        "UOG Ownership %",
+        10,
+        100,
+        52
+    )
+
+    barrel_value = discovery_size * value_per_barrel * (ownership/100)
+
+    total_value = barrel_value * 1_000_000
+
+    estimated_price = (total_value / shares_outstanding) / 100
+
+    st.write(f"Estimated Share Price from Discovery: **{estimated_price:.2f}p**")
+
+# --------------------------------
+# 3D DISCOVERY SURFACE
+# --------------------------------
+
+size_range = np.linspace(100,5000,30)
+value_range = np.linspace(5,80,30)
+
+X,Y = np.meshgrid(size_range,value_range)
+
+Z = (X*Y*(ownership/100)*1_000_000)/shares_outstanding/100
+
+fig3d = go.Figure(data=[go.Surface(
+    x=X,
+    y=Y,
+    z=Z,
+    colorscale="YlOrRd"
+)])
+
+fig3d.update_layout(
+    title="Discovery Value Surface (Share Price p)",
+    scene=dict(
+        xaxis_title="Discovery Size (MMBO)",
+        yaxis_title="Value per Barrel ($)",
+        zaxis_title="Share Price (p)"
+    ),
+    height=500
 )
 
-# --------------------------------------------------
-# CALCULATIONS
-# --------------------------------------------------
+st.plotly_chart(fig3d,use_container_width=True)
 
-scenario_market_cap = (share_price/100) * shares_outstanding
-personal_value = shares_owned * (share_price/100)
-multiple = share_price / 0.23
+# --------------------------------
+# HOLDINGS
+# --------------------------------
 
-# --------------------------------------------------
-# RESULTS
-# --------------------------------------------------
+with st.expander("Your Holding", True):
 
-st.markdown('<div class="section">Scenario Results</div>',unsafe_allow_html=True)
+    current_shares = st.number_input(
+        "Current Shares",
+        value=1_000_000
+    )
+
+    scenario_shares = st.slider(
+        "Scenario Shares",
+        1_000_000,
+        250_000_000,
+        current_shares,
+        step=500_000
+    )
+
+# --------------------------------
+# VALUATION
+# --------------------------------
+
+scenario_price = scenario_price_slider / 100
+
+scenario_market_cap = scenario_price * shares_outstanding
+
+personal_current = current_shares * price
+personal_scenario = scenario_shares * scenario_price
 
 col1,col2 = st.columns(2)
 
 with col1:
-    st.markdown(f"""
-    <div class="card">
-    <div class="metric">£{scenario_market_cap:,.0f}</div>
-    <div style="text-align:center">Market Cap Scenario</div>
-    </div>
-    """,unsafe_allow_html=True)
+
+    st.metric(
+        "Market Cap (Current)",
+        f"£{market_cap/1e6:.2f}M"
+    )
+
+    st.metric(
+        "Market Cap (Scenario)",
+        f"£{scenario_market_cap/1e9:.2f}B"
+    )
 
 with col2:
-    st.markdown(f"""
-    <div class="card">
-    <div class="metric">£{personal_value:,.0f}</div>
-    <div style="text-align:center">Personal Holding Value</div>
-    </div>
-    """,unsafe_allow_html=True)
 
-# --------------------------------------------------
-# RERATING BAR
-# --------------------------------------------------
+    st.metric(
+        "Personal Value (Current)",
+        f"£{personal_current:,.0f}"
+    )
 
-st.markdown('<div class="section">Multiple-X Re-Rating</div>',unsafe_allow_html=True)
+    st.metric(
+        "Personal Value (Scenario)",
+        f"£{personal_scenario:,.0f}"
+    )
 
-st.progress(min(multiple/30,1.0))
+# --------------------------------
+# PRICE TARGET CHART
+# --------------------------------
 
-st.write(f"**{multiple:.1f}× vs current price (0.23p)**")
+fig = go.Figure()
 
-# --------------------------------------------------
-# COS → VALUATION CURVE
-# --------------------------------------------------
+fig.add_trace(go.Scatter(
+    x=hist.index,
+    y=hist["Close"]*100,
+    mode="lines",
+    line=dict(color="gold",width=3),
+    name="Price"
+))
 
-cos_values = list(range(10,51))
-
-values=[]
-
-for c in cos_values:
-    cap = scenario_market_cap * (c/50)
-    values.append(cap)
-
-df = pd.DataFrame({
-"COS":cos_values,
-"MarketCap":values
-})
-
-fig2 = px.line(df,x="COS",y="MarketCap")
-
-fig2.update_traces(line_color="#ffd166",line_width=3)
-
-fig2.update_layout(
-template="plotly_dark",
-plot_bgcolor="#020617",
-paper_bgcolor="#020617",
-height=300
+fig.add_hline(
+    y=price_p,
+    line_color="white",
+    line_dash="dot",
+    annotation_text=f"Current {price_p:.3f}p"
 )
 
-st.plotly_chart(fig2,use_container_width=True)
+fig.add_hline(
+    y=scenario_price_slider,
+    line_color="red",
+    line_dash="dash",
+    annotation_text=f"Scenario {scenario_price_slider:.2f}p"
+)
 
-# --------------------------------------------------
-# QUICK SCENARIOS
-# --------------------------------------------------
+fig.update_layout(
+height=350,
+plot_bgcolor="#020617",
+paper_bgcolor="#020617",
+font=dict(color="white")
+)
 
-col1,col2,col3 = st.columns(3)
+st.plotly_chart(fig,use_container_width=True)
 
-col1.button("5p → £233M")
-col2.button("10p → £466M")
-col3.button("15p → £699M")
+# --------------------------------
+# SCENARIO CARD
+# --------------------------------
 
-# --------------------------------------------------
-# SHAREABLE SCENARIO CARD
-# --------------------------------------------------
+st.subheader("Share Scenario")
 
-st.markdown('<div class="section">Share Scenario</div>',unsafe_allow_html=True)
-
-def create_scenario_card():
+def create_card():
 
     img = Image.new("RGB",(800,800),(10,15,25))
     draw = ImageDraw.Draw(img)
 
-    draw.text((50,50),"Walton Morant Scenario",fill=(255,200,80))
+    draw.text((50,50),"UOG Scenario Tool",fill="gold")
 
-    draw.text((50,150),f"COS: {cos}%",fill="white")
-    draw.text((50,200),f"Share Price: {share_price}p",fill="white")
-    draw.text((50,250),f"Shares Owned: {shares_owned:,}",fill="white")
+    draw.text((50,200),f"Current Price {price_p:.3f}p",fill="white")
 
-    draw.text((50,380),"Market Cap Scenario",fill=(255,200,80))
-    draw.text((50,420),f"£{scenario_market_cap:,.0f}",fill="white")
+    draw.text((50,250),f"Scenario Price {scenario_price_slider:.2f}p",fill="white")
 
-    draw.text((50,520),"Personal Holding Value",fill=(255,200,80))
-    draw.text((50,560),f"£{personal_value:,.0f}",fill="white")
+    draw.text((50,400),"Market Cap",fill="gold")
 
-    draw.text((50,660),f"{multiple:.1f}× vs current price",fill="white")
+    draw.text((50,450),f"Current £{market_cap:,.0f}",fill="white")
 
-    buffer = io.BytesIO()
-    img.save(buffer,"PNG")
+    draw.text((50,500),f"Scenario £{scenario_market_cap:,.0f}",fill="white")
 
-    return buffer
+    draw.text((50,650),"Personal Value",fill="gold")
 
-if st.button("Generate Shareable Scenario Card"):
+    draw.text((50,700),f"Current £{personal_current:,.0f}",fill="white")
 
-    img = create_scenario_card()
+    draw.text((50,740),f"Scenario £{personal_scenario:,.0f}",fill="white")
+
+    buf=io.BytesIO()
+    img.save(buf,"PNG")
+
+    return buf
+
+if st.button("Generate Scenario Card"):
+
+    img=create_card()
 
     st.download_button(
-        label="Download Scenario Image",
+        "Download Scenario Image",
         data=img,
         file_name="uog_scenario.png",
         mime="image/png"
