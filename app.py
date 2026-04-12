@@ -82,10 +82,10 @@ intraday = ticker.history(period="1d", interval="5m")
 price = intraday["Close"].iloc[-1]
 prev_price = intraday["Close"].iloc[0]
 
-price_p = price * 100
+price_p = price 
 
 shares_outstanding = 4.66e9
-market_cap = price * shares_outstanding
+market_cap = price_p * shares_outstanding
 
 volume_today = intraday["Volume"].sum()
 change_pct = ((price-prev_price)/prev_price)*100
