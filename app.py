@@ -210,7 +210,7 @@ elif menu == "Discovery Simulator":
 
 div[data-baseweb="slider"] > div > div{
 background:white !important;
-height:6px;
+height:5px;
 }
 
 /* Slider active section */
@@ -223,7 +223,7 @@ background:gold !important;
 
 div[data-baseweb="slider"] div[role="slider"]{
 background:gold !important;
-border:2px solid white !important;
+border:3px solid white !important;
 }
 
 </style>
