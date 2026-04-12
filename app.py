@@ -7,7 +7,7 @@ import feedparser
 
 st.set_page_config(page_title="Exploration Intelligence Terminal", layout="wide")
 
-# ---------------- MOBILE UI + COMPRESSION ----------------
+# ---------------- MOBILE UI ----------------
 
 st.markdown("""
 <style>
@@ -19,8 +19,6 @@ padding-top:0.2rem;
 padding-bottom:0.2rem;
 }
 
-/* sticky ticker header */
-
 .ticker{
 position:sticky;
 top:0;
@@ -31,8 +29,6 @@ font-size:12px;
 font-weight:bold;
 z-index:999;
 }
-
-/* compact sliders */
 
 div[data-baseweb="slider"] > div > div{
 background:white !important;
@@ -48,26 +44,8 @@ background:gold !important;
 border:2px solid white !important;
 }
 
-/* compact tables */
-
 [data-testid="stDataFrame"]{
 font-size:12px;
-}
-
-/* bottom control bar */
-
-.bottom-bar{
-position:fixed;
-bottom:0;
-left:0;
-right:0;
-background:#111827;
-border-top:2px solid gold;
-padding:6px;
-display:flex;
-justify-content:space-around;
-font-size:12px;
-z-index:999;
 }
 
 </style>
@@ -75,39 +53,66 @@ z-index:999;
 
 # ---------------- DATA FUNCTIONS ----------------
 
+@st.cache_resource
+def get_ticker(ticker):
+    return yf.Ticker(ticker)
+
 @st.cache_data(ttl=300)
 def get_intraday(ticker):
-    return yf.Ticker(ticker).history(period="1d", interval="5m")
+    try:
+        return yf.Ticker(ticker).history(period="1d", interval="5m")
+    except:
+        return pd.DataFrame()
 
 @st.cache_data(ttl=600)
 def get_history(ticker, period="6mo"):
-    return yf.Ticker(ticker).history(period=period)
+    try:
+        return yf.Ticker(ticker).history(period=period)
+    except:
+        return pd.DataFrame()
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=86400)
 def get_shares(ticker):
-    tk = yf.Ticker(ticker)
-    fast = tk.fast_info
-    shares = fast.get("sharesOutstanding")
-    if shares is None:
-        shares = tk.info.get("sharesOutstanding",0)
-    return shares
+
+    try:
+        tk = get_ticker(ticker)
+
+        fast = tk.fast_info
+        shares = fast.get("sharesOutstanding")
+
+        if shares and shares > 0:
+            return shares
+
+    except:
+        pass
+
+    # fallback shares (prevents crashes)
+    fallback = {
+        "UOG.L": 4.66e9,
+        "ECO.L": 2.42e9,
+        "PANR.L": 1.20e9,
+        "88E.L": 8.90e9,
+        "RECAF": 2.10e8
+    }
+
+    return fallback.get(ticker, 1e9)
 
 # ---------------- CONTROL BAR STATE ----------------
 
 if "tf" not in st.session_state:
-    st.session_state.tf="6M"
+    st.session_state.tf = "6M"
 
 if "ma5" not in st.session_state:
-    st.session_state.ma5=False
+    st.session_state.ma5 = False
 
 if "ma20" not in st.session_state:
-    st.session_state.ma20=False
+    st.session_state.ma20 = False
 
 if "ma50" not in st.session_state:
-    st.session_state.ma50=False
+    st.session_state.ma50 = False
 
 if "vol" not in st.session_state:
-    st.session_state.vol=False
+    st.session_state.vol = False
 
 # ---------------- STOCK SELECT ----------------
 
@@ -118,7 +123,11 @@ ticker_symbol = st.selectbox(
 
 intraday = get_intraday(ticker_symbol)
 
-price_p = intraday["Close"].iloc[-1]
+if not intraday.empty:
+    price_p = intraday["Close"].iloc[-1]
+else:
+    price_p = 0.25
+
 price_gbp = price_p / 100
 
 shares_outstanding = get_shares(ticker_symbol)
@@ -183,34 +192,36 @@ if page=="Dashboard":
 
     hist=get_history(ticker_symbol,period_map[st.session_state.tf])
 
-    hist["MA5"]=hist["Close"].rolling(5).mean()
-    hist["MA20"]=hist["Close"].rolling(20).mean()
-    hist["MA50"]=hist["Close"].rolling(50).mean()
+    if not hist.empty:
 
-    fig=go.Figure()
+        hist["MA5"]=hist["Close"].rolling(5).mean()
+        hist["MA20"]=hist["Close"].rolling(20).mean()
+        hist["MA50"]=hist["Close"].rolling(50).mean()
 
-    fig.add_trace(go.Candlestick(
-        x=hist.index,
-        open=hist["Open"],
-        high=hist["High"],
-        low=hist["Low"],
-        close=hist["Close"]
-    ))
+        fig=go.Figure()
 
-    if st.session_state.ma5:
-        fig.add_trace(go.Scatter(x=hist.index,y=hist["MA5"],line=dict(color="lime")))
+        fig.add_trace(go.Candlestick(
+            x=hist.index,
+            open=hist["Open"],
+            high=hist["High"],
+            low=hist["Low"],
+            close=hist["Close"]
+        ))
 
-    if st.session_state.ma20:
-        fig.add_trace(go.Scatter(x=hist.index,y=hist["MA20"],line=dict(color="gold")))
+        if st.session_state.ma5:
+            fig.add_trace(go.Scatter(x=hist.index,y=hist["MA5"],line=dict(color="lime")))
 
-    if st.session_state.ma50:
-        fig.add_trace(go.Scatter(x=hist.index,y=hist["MA50"],line=dict(color="orange")))
+        if st.session_state.ma20:
+            fig.add_trace(go.Scatter(x=hist.index,y=hist["MA20"],line=dict(color="gold")))
 
-    if st.session_state.vol:
-        fig.add_trace(go.Bar(x=hist.index,y=hist["Volume"],yaxis="y2"))
-        fig.update_layout(yaxis2=dict(overlaying="y",side="right"))
+        if st.session_state.ma50:
+            fig.add_trace(go.Scatter(x=hist.index,y=hist["MA50"],line=dict(color="orange")))
 
-    st.plotly_chart(fig,use_container_width=True)
+        if st.session_state.vol:
+            fig.add_trace(go.Bar(x=hist.index,y=hist["Volume"],yaxis="y2"))
+            fig.update_layout(yaxis2=dict(overlaying="y",side="right"))
+
+        st.plotly_chart(fig,use_container_width=True)
 
 # ---------------- MARKET ACTIVITY ----------------
 
@@ -218,10 +229,12 @@ elif page=="Market Activity":
 
     hist=get_history(ticker_symbol,"5d")
 
-    hist["Change"]=hist["Close"].pct_change()*100
-    hist["Trade"]=np.where(hist["Change"]>0,"Buy","Sell")
+    if not hist.empty:
 
-    st.dataframe(hist[["Close","Volume","Change","Trade"]])
+        hist["Change"]=hist["Close"].pct_change()*100
+        hist["Trade"]=np.where(hist["Change"]>0,"Buy","Sell")
+
+        st.dataframe(hist[["Close","Volume","Change","Trade"]])
 
 # ---------------- PORTFOLIO ----------------
 
