@@ -31,7 +31,7 @@ padding:12px;
 position:sticky;
 top:0;
 background:#111827;
-padding:10px;
+padding:5px;
 font-weight:bold;
 border-bottom:2px solid gold;
 z-index:999;
@@ -61,7 +61,7 @@ intraday = ticker.history(period="1d", interval="5m")
 price = intraday["Close"].iloc[-1]
 prev_price = intraday["Close"].iloc[0]
 
-price_p = price * 100
+price_p = price
 
 shares_outstanding = 4.66e9
 market_cap = price * shares_outstanding
@@ -204,11 +204,31 @@ elif menu == "Discovery Simulator":
 
     # Gold slider style
     st.markdown("""
-    <style>
-    div[data-baseweb="slider"] > div > div{
-        background:gold !important;
-    }
-    </style>
+  <style>
+
+/* Slider track */
+
+div[data-baseweb="slider"] > div > div{
+background:white !important;
+height:6px;
+}
+
+/* Slider active section */
+
+div[data-baseweb="slider"] span{
+background:gold !important;
+}
+
+/* Slider handle */
+
+div[data-baseweb="slider"] div[role="slider"]{
+background:gold !important;
+border:2px solid white !important;
+}
+
+</style>
+
+
     """, unsafe_allow_html=True)
 
     discovery = st.slider(
