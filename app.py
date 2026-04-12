@@ -185,42 +185,105 @@ elif menu == "Market Activity":
 
 elif menu == "Discovery Simulator":
 
-    discovery = st.slider("Discovery Size MMBO",100,5000,1000)
-    oil_price = st.slider("Oil Price",40,120,70)
-    cos = st.slider("Chance of Success %",5,80,20)
+    st.markdown("### Discovery Simulator")
+
+    # Reduce vertical spacing
+    st.markdown(
+        """
+        <style>
+        .stSlider > label {
+            margin-bottom: -10px;
+        }
+        .block-container {
+            padding-top: 1rem;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # Gold slider style
+    st.markdown("""
+    <style>
+    div[data-baseweb="slider"] > div > div{
+        background:gold !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    discovery = st.slider(
+        "Discovery Size (MMBO)",
+        100,
+        5000,
+        1000
+    )
+
+    oil_price = st.slider(
+        "Oil Price ($)",
+        40,
+        120,
+        70
+    )
+
+    cos = st.slider(
+        "Chance of Success (%)",
+        5,
+        80,
+        20
+    )
 
     value = discovery * oil_price * 0.52 * 1_000_000
 
-    price_est = (value/shares_outstanding)*100
-    expected = price_est*(cos/100)
+    price_est = (value/shares_outstanding) * 100
+    expected = price_est * (cos/100)
 
-    st.metric("Discovery Price",f"{price_est:.2f}p")
-    st.metric("Probability Weighted Value",f"{expected:.2f}p")
+    # Horizontal metrics
+    col1, col2 = st.columns(2)
 
-    ladder_sizes=[100,500,1000,2000,5000]
-    ladder_prices=[]
+    with col1:
+        st.metric("Discovery Price", f"{price_est:.2f}p")
+
+    with col2:
+        st.metric("Probability Weighted Value", f"{expected:.2f}p")
+
+    # Reduce space before chart
+    st.markdown("<div style='margin-top:-20px'></div>", unsafe_allow_html=True)
+
+    ladder_sizes = [100,500,1000,2000,5000]
+    ladder_prices = []
 
     for size in ladder_sizes:
-        value=size*oil_price*0.52*1_000_000
-        ladder_prices.append((value/shares_outstanding)*100)
+        value = size * oil_price * 0.52 * 1_000_000
+        ladder_prices.append((value/shares_outstanding) * 100)
 
-    fig=go.Figure()
+    fig = go.Figure()
 
     fig.add_trace(go.Bar(
-    x=[str(x)+" MMBO" for x in ladder_sizes],
-    y=ladder_prices,
-    marker_color="gold"
+        x=[str(x)+" MMBO" for x in ladder_sizes],
+        y=ladder_prices,
+        marker_color="gold"
     ))
 
     fig.add_hline(
-    y=price_p,
-    line_dash="dash",
-    line_color="red",
-    annotation_text="Current Price"
+        y=price_p,
+        line_dash="dash",
+        line_color="red",
+        annotation_text="Current Price"
     )
 
-    st.plotly_chart(fig,use_container_width=True)
+    fig.update_layout(
+        height=420,  # prevents vertical scrolling
+        margin=dict(t=10,b=10,l=10,r=10),
+        plot_bgcolor="#020617",
+        paper_bgcolor="#020617",
+        font=dict(color="#FFD700")
+    )
 
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={"displayModeBar": False}
+    )
 # ---------------- LIVE NEWS ----------------
 
 elif menu == "Live News":
