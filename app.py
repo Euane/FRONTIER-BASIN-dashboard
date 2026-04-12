@@ -7,7 +7,7 @@ import feedparser
 
 st.set_page_config(page_title="Exploration Valuation Dashboard", layout="wide")
 
-# ---------------- STYLE ----------------
+# ---------- GLOBAL STYLE ----------
 
 st.markdown("""
 <style>
@@ -17,25 +17,46 @@ background:#020617;
 color:#FFD700;
 }
 
-/* main border */
-
-.main .block-container{
-border:2px solid #FFD700;
-border-radius:12px;
-padding:12px;
+.block-container{
+padding-top:1rem;
+padding-bottom:1rem;
 }
 
-/* floating ticker */
+/* ticker */
 
 .ticker{
 position:sticky;
 top:0;
 background:#111827;
-padding:2px;
+padding:8px;
 font-weight:bold;
 border-bottom:2px solid gold;
 z-index:999;
 }
+
+/* slider styling */
+
+div[data-baseweb="slider"] > div > div{
+background:white !important;
+height:6px;
+}
+
+div[data-baseweb="slider"] span{
+background:gold !important;
+}
+
+div[data-baseweb="slider"] div[role="slider"]{
+background:gold !important;
+border:2px solid white !important;
+}
+
+/* reduce label spacing */
+
+.stSlider label{
+margin-bottom:-8px;
+}
+
+/* charts */
 
 .js-plotly-plot{
 box-shadow:0 0 10px rgba(255,215,0,0.4);
@@ -45,7 +66,7 @@ border-radius:8px;
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- STOCK SELECTOR ----------------
+# ---------- STOCK SELECT ----------
 
 ticker_symbol = st.selectbox(
 "Select Exploration Stock",
@@ -54,22 +75,22 @@ ticker_symbol = st.selectbox(
 
 ticker = yf.Ticker(ticker_symbol)
 
-# ---------------- MARKET DATA ----------------
+# ---------- MARKET DATA ----------
 
 intraday = ticker.history(period="1d", interval="5m")
 
 price = intraday["Close"].iloc[-1]
 prev_price = intraday["Close"].iloc[0]
 
-price_p = price
+price_p = price * 100
 
 shares_outstanding = 4.66e9
-market_cap = (price * shares_outstanding)/100
+market_cap = price * shares_outstanding
 
 volume_today = intraday["Volume"].sum()
 change_pct = ((price-prev_price)/prev_price)*100
 
-# ---------------- FLOATING TICKER ----------------
+# ---------- FLOATING TICKER ----------
 
 st.markdown(f"""
 <div class="ticker">
@@ -78,9 +99,9 @@ Volume {volume_today:,.0f} | Market Cap £{market_cap/1e6:.2f}M
 </div>
 """, unsafe_allow_html=True)
 
+st.divider()
 
-
-# ---------------- MENU ----------------
+# ---------- MENU ----------
 
 menu = st.sidebar.selectbox(
 "Menu",
@@ -95,7 +116,7 @@ menu = st.sidebar.selectbox(
 ]
 )
 
-# ---------------- DASHBOARD ----------------
+# ---------- DASHBOARD ----------
 
 if menu == "Dashboard":
 
@@ -135,7 +156,7 @@ if menu == "Dashboard":
 
     st.plotly_chart(fig,use_container_width=True)
 
-# ---------------- PORTFOLIO ----------------
+# ---------- PORTFOLIO ----------
 
 elif menu == "Your Portfolio":
 
@@ -153,13 +174,11 @@ elif menu == "Your Portfolio":
 
     pct = ((scenario_value-current_value)/current_value)*100
 
-    c1,c2,c3 = st.columns(3)
+    st.write(f"Current Value: £{current_value:,.0f}")
+    st.write(f"Scenario Value: £{scenario_value:,.0f}")
+    st.write(f"Change: {pct:.1f}%")
 
-    c1.metric("Current Value",f"£{current_value:,.0f}")
-    c2.metric("Scenario Value",f"£{scenario_value:,.0f}")
-    c3.metric("Change",f"{pct:.1f}%")
-
-# ---------------- MARKET ACTIVITY ----------------
+# ---------- MARKET ACTIVITY ----------
 
 elif menu == "Market Activity":
 
@@ -177,134 +196,70 @@ elif menu == "Market Activity":
 
     st.progress(buy_pct/100)
 
-    c1,c2=st.columns(2)
-    c1.metric("BUY",f"{buy_pct:.1f}%")
-    c2.metric("SELL",f"{sell_pct:.1f}%")
+    st.write(f"BUY {buy_pct:.1f}%")
+    st.write(f"SELL {sell_pct:.1f}%")
 
-# ---------------- DISCOVERY SIMULATOR ----------------
+# ---------- DISCOVERY SIMULATOR ----------
 
 elif menu == "Discovery Simulator":
 
-    st.markdown("### Discovery Simulator")
+    discovery = st.slider("Discovery Size (MMBO)",100,5000,1000)
 
-    # Reduce vertical spacing
-    st.markdown(
-        """
-        <style>
-        .stSlider > label {
-            margin-bottom: -10px;
-        }
-        .block-container {
-            padding-top: 1rem;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
+    oil_price = st.slider("Oil Price ($)",40,120,70)
 
-    # Gold slider style
-    st.markdown("""
-  <style>
-
-/* Slider track */
-
-div[data-baseweb="slider"] > div > div{
-background:white !important;
-height:5px;
-}
-
-/* Slider active section */
-
-div[data-baseweb="slider"] span{
-background:gold !important;
-}
-
-/* Slider handle */
-
-div[data-baseweb="slider"] div[role="slider"]{
-background:gold !important;
-border:3px solid white !important;
-}
-
-</style>
-
-
-    """, unsafe_allow_html=True)
-
-    discovery = st.slider(
-        "Discovery Size (MMBO)",
-        100,
-        5000,
-        1000
-    )
-
-    oil_price = st.slider(
-        "Oil Price ($)",
-        40,
-        120,
-        70
-    )
-
-    cos = st.slider(
-        "Chance of Success (%)",
-        5,
-        80,
-        20
-    )
+    cos = st.slider("Chance of Success (%)",5,80,20)
 
     value = discovery * oil_price * 0.52 * 1_000_000
 
     price_est = (value/shares_outstanding) * 100
     expected = price_est * (cos/100)
 
-    # Horizontal metrics
-    col1, col2 = st.columns(2)
+    # ---------- COMPACT VALUE ROW ----------
 
-  st.markdown(f"""
-<div style="
-display:flex;
-justify-content:space-between;
-align-items:center;
-gap:12px;
-font-size:14px;
-margin-top:-6px;
-margin-bottom:-6px;
-">
+    st.markdown(f"""
+    <div style="
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:12px;
+    font-size:13px;
+    margin-top:-6px;
+    margin-bottom:-6px;
+    ">
 
-<div>
-<span style="color:white">Discovery Price</span><br>
-<b style="color:gold">{price_est:.2f}p</b>
-</div>
+    <div>
+    <span style="color:white">Discovery Price</span><br>
+    <b style="color:gold">{price_est:.2f}p</b>
+    </div>
 
-<div>
-<span style="color:white">Probability Weighted</span><br>
-<b style="color:gold">{expected:.2f}p</b>
-</div>
+    <div>
+    <span style="color:white">Probability Weighted</span><br>
+    <b style="color:gold">{expected:.2f}p</b>
+    </div>
 
-<div>
-<span style="color:white">Oil Price</span><br>
-<b style="color:gold">${oil_price}</b>
-</div>
+    <div>
+    <span style="color:white">Oil Price</span><br>
+    <b style="color:gold">${oil_price}</b>
+    </div>
 
-<div>
-<span style="color:white">COS</span><br>
-<b style="color:gold">{cos}%</b>
-</div>
+    <div>
+    <span style="color:white">COS</span><br>
+    <b style="color:gold">{cos}%</b>
+    </div>
 
-</div>
-""", unsafe_allow_html=True)
+    </div>
+    """, unsafe_allow_html=True)
 
-    # Reduce space before chart
-    st.markdown("<div style='margin-top:-20px'></div>", unsafe_allow_html=True)
+    # ---------- VALUE LADDER ----------
 
-    ladder_sizes = [100,500,1000,2000,5000]
-    ladder_prices = []
+    ladder_sizes=[100,500,1000,2000,5000]
+    ladder_prices=[]
 
     for size in ladder_sizes:
-        value = size * oil_price * 0.52 * 1_000_000
-        ladder_prices.append((value/shares_outstanding) * 100)
+        value=size*oil_price*0.52*1_000_000
+        ladder_prices.append((value/shares_outstanding)*100)
 
-    fig = go.Figure()
+    fig=go.Figure()
 
     fig.add_trace(go.Bar(
         x=[str(x)+" MMBO" for x in ladder_sizes],
@@ -320,19 +275,16 @@ margin-bottom:-6px;
     )
 
     fig.update_layout(
-        height=420,  # prevents vertical scrolling
+        height=420,
         margin=dict(t=10,b=10,l=10,r=10),
         plot_bgcolor="#020617",
         paper_bgcolor="#020617",
         font=dict(color="#FFD700")
     )
 
-    st.plotly_chart(
-        fig,
-        use_container_width=True,
-        config={"displayModeBar": False}
-    )
-# ---------------- LIVE NEWS ----------------
+    st.plotly_chart(fig,use_container_width=True)
+
+# ---------- LIVE NEWS ----------
 
 elif menu == "Live News":
 
@@ -346,13 +298,13 @@ elif menu == "Live News":
         link=article.get("link","")
 
         if any(word in title.lower() for word in keywords):
-            st.markdown("## 🚨 Exploration Alert")
+            st.markdown("### 🚨 Exploration Alert")
 
-        st.markdown(f"### {title}")
+        st.markdown(f"{title}")
         st.markdown(f"[Read article]({link})")
         st.divider()
 
-# ---------------- RSS INTELLIGENCE ----------------
+# ---------- RSS FEED ----------
 
 elif menu == "Exploration Intelligence Feed":
 
@@ -369,11 +321,11 @@ elif menu == "Exploration Intelligence Feed":
 
         for entry in feed.entries[:5]:
 
-            st.markdown(f"**{entry.title}**")
-            st.markdown(f"[Read Article]({entry.link})")
+            st.write(entry.title)
+            st.write(entry.link)
             st.divider()
 
-# ---------------- GLOBAL MAP ----------------
+# ---------- GLOBAL MAP ----------
 
 elif menu == "Global Exploration Map":
 
