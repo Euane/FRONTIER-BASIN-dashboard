@@ -3,349 +3,292 @@ import yfinance as yf
 import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
+import feedparser
 
-# -------------------------------------------------
-# PAGE CONFIG
-# -------------------------------------------------
+st.set_page_config(page_title="Exploration Valuation Dashboard", layout="wide")
 
-st.set_page_config(
-    page_title="UOG Scenario Tool",
-    page_icon="📈",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
-
-# -------------------------------------------------
-# DARK GOLD STYLE
-# -------------------------------------------------
+# ---------------- STYLE ----------------
 
 st.markdown("""
 <style>
 
-body {
-    background-color:#020617;
-    color:#FFD700;
+body{
+background:#020617;
+color:#FFD700;
 }
 
-h1,h2,h3 {
-    color:#FFD700;
+/* main border */
+
+.main .block-container{
+border:2px solid #FFD700;
+border-radius:12px;
+padding:12px;
 }
 
-section[data-testid="stSidebar"] {
-    background-color:#020617;
-}
+/* floating ticker */
 
-div[data-testid="stMetric"]{
+.ticker{
+position:sticky;
+top:0;
 background:#111827;
-border-radius:10px;
 padding:10px;
-border:1px solid rgba(255,215,0,0.25);
+font-weight:bold;
+border-bottom:2px solid gold;
+z-index:999;
+}
+
+.js-plotly-plot{
+box-shadow:0 0 10px rgba(255,215,0,0.4);
+border-radius:8px;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
-# -------------------------------------------------
-# MARKET DATA
-# -------------------------------------------------
+# ---------------- STOCK SELECTOR ----------------
 
-ticker = yf.Ticker("UOG.L")
+ticker_symbol = st.selectbox(
+"Select Exploration Stock",
+["UOG.L","ECO.L","PANR.L","88E.L","RECAF"]
+)
+
+ticker = yf.Ticker(ticker_symbol)
+
+# ---------------- MARKET DATA ----------------
 
 intraday = ticker.history(period="1d", interval="5m")
 
 price = intraday["Close"].iloc[-1]
-
 prev_price = intraday["Close"].iloc[0]
 
 price_p = price * 100
 
 shares_outstanding = 4.66e9
-
 market_cap = price * shares_outstanding
 
 volume_today = intraday["Volume"].sum()
+change_pct = ((price-prev_price)/prev_price)*100
 
-change_pct = ((price - prev_price) / prev_price) * 100
+# ---------------- FLOATING TICKER ----------------
 
-# -------------------------------------------------
-# HEADER
-# -------------------------------------------------
-
-st.markdown(
-f"""
-### UOG LIVE MARKET
-
-Price **{price_p:.3f}p** | Change **{change_pct:+.2f}%** |  
-Market Cap **£{market_cap/1e6:.2f}M** | Volume **{volume_today:,.0f}** | Shares **4.66B**
-"""
-)
+st.markdown(f"""
+<div class="ticker">
+{ticker_symbol} | Price {price_p:.3f}p | Change {change_pct:+.2f}% |
+Volume {volume_today:,.0f} | Market Cap £{market_cap/1e6:.2f}M
+</div>
+""", unsafe_allow_html=True)
 
 st.divider()
 
-# -------------------------------------------------
-# BUY / SELL PRESSURE
-# -------------------------------------------------
-
-hist_pressure = ticker.history(period="5d", interval="5m")
-
-hist_pressure["Prev"] = hist_pressure["Close"].shift(1)
-
-buy = (hist_pressure["Close"] > hist_pressure["Prev"]).sum()
-sell = (hist_pressure["Close"] < hist_pressure["Prev"]).sum()
-
-total = buy + sell
-
-buy_pct = (buy / total) * 100
-sell_pct = (sell / total) * 100
-
-st.subheader("Market Pressure")
-
-st.progress(buy_pct/100)
-
-col1, col2 = st.columns(2)
-
-with col1:
-    st.metric("BUY Pressure", f"{buy_pct:.1f}%")
-
-with col2:
-    st.metric("SELL Pressure", f"{sell_pct:.1f}%")
-
-st.divider()
-
-# -------------------------------------------------
-# MENU
-# -------------------------------------------------
+# ---------------- MENU ----------------
 
 menu = st.sidebar.selectbox(
-    "Menu",
-    [
-        "Dashboard",
-        "Portfolio Impact",
-        "Market Activity",
-        "Scenario Lab",
-        "Discovery Simulator"
-    ]
+"Menu",
+[
+"Dashboard",
+"Your Portfolio",
+"Market Activity",
+"Discovery Simulator",
+"Live News",
+"Exploration Intelligence Feed",
+"Global Exploration Map"
+]
 )
 
-# -------------------------------------------------
-# TIMEFRAME MAP
-# -------------------------------------------------
-
-timeframe_map = {
-"1d":"1d",
-"2d":"2d",
-"3d":"3d",
-"1w":"5d",
-"1w":"7d",
-"2w":"14d",
-"3w":"21d",
-"1m":"1mo",
-"3m":"3mo",
-"6m":"6mo",
-"1y":"1y",
-"2y":"2y"
-}
-
-# -------------------------------------------------
-# DASHBOARD
-# -------------------------------------------------
+# ---------------- DASHBOARD ----------------
 
 if menu == "Dashboard":
 
-    st.title("UOG Dashboard")
+    hist = ticker.history(period="6mo")
 
-    timeframe = st.selectbox("Chart Timeframe", list(timeframe_map.keys()))
+    hist["MA5"] = hist["Close"].rolling(5).mean()
+    hist["MA20"] = hist["Close"].rolling(20).mean()
+    hist["MA50"] = hist["Close"].rolling(50).mean()
 
-    hist = ticker.history(period=timeframe_map[timeframe])
-
-    show_rerating = st.toggle("Show Rerating Ladder", True)
-    show_discovery = st.toggle("Show Discovery Ladder", False)
+    show_ma5 = st.checkbox("MA5",True)
+    show_ma20 = st.checkbox("MA20",True)
+    show_ma50 = st.checkbox("MA50",True)
+    show_volume = st.checkbox("Volume",True)
 
     fig = go.Figure()
 
-    fig.add_trace(go.Scatter(
+    fig.add_trace(go.Candlestick(
         x=hist.index,
-        y=hist["Close"]*100,
-        line=dict(color="gold", width=3)
+        open=hist["Open"],
+        high=hist["High"],
+        low=hist["Low"],
+        close=hist["Close"]
+    ))
+
+    if show_ma5:
+        fig.add_trace(go.Scatter(x=hist.index,y=hist["MA5"],line=dict(color="lime"),name="MA5"))
+
+    if show_ma20:
+        fig.add_trace(go.Scatter(x=hist.index,y=hist["MA20"],line=dict(color="gold"),name="MA20"))
+
+    if show_ma50:
+        fig.add_trace(go.Scatter(x=hist.index,y=hist["MA50"],line=dict(color="orange"),name="MA50"))
+
+    if show_volume:
+        fig.add_trace(go.Bar(x=hist.index,y=hist["Volume"],name="Volume",yaxis="y2"))
+        fig.update_layout(yaxis2=dict(overlaying="y",side="right"))
+
+    st.plotly_chart(fig,use_container_width=True)
+
+# ---------------- PORTFOLIO ----------------
+
+elif menu == "Your Portfolio":
+
+    shares = st.number_input("Your Shares",value=1000000)
+
+    rerate = st.select_slider(
+    "Rerating Multiple",
+    options=[1,2,3,4,5,7,10,15,20,25]
+    )
+
+    scenario_price = price * rerate
+
+    scenario_value = shares * scenario_price
+    current_value = shares * price
+
+    pct = ((scenario_value-current_value)/current_value)*100
+
+    c1,c2,c3 = st.columns(3)
+
+    c1.metric("Current Value",f"£{current_value:,.0f}")
+    c2.metric("Scenario Value",f"£{scenario_value:,.0f}")
+    c3.metric("Change",f"{pct:.1f}%")
+
+# ---------------- MARKET ACTIVITY ----------------
+
+elif menu == "Market Activity":
+
+    hist = ticker.history(period="5d", interval="5m")
+
+    hist["Prev"]=hist["Close"].shift(1)
+
+    buy=(hist["Close"]>hist["Prev"]).sum()
+    sell=(hist["Close"]<hist["Prev"]).sum()
+
+    total=buy+sell
+
+    buy_pct=buy/total*100
+    sell_pct=sell/total*100
+
+    st.progress(buy_pct/100)
+
+    c1,c2=st.columns(2)
+    c1.metric("BUY",f"{buy_pct:.1f}%")
+    c2.metric("SELL",f"{sell_pct:.1f}%")
+
+# ---------------- DISCOVERY SIMULATOR ----------------
+
+elif menu == "Discovery Simulator":
+
+    discovery = st.slider("Discovery Size MMBO",100,5000,1000)
+    oil_price = st.slider("Oil Price",40,120,70)
+    cos = st.slider("Chance of Success %",5,80,20)
+
+    value = discovery * oil_price * 0.52 * 1_000_000
+
+    price_est = (value/shares_outstanding)*100
+    expected = price_est*(cos/100)
+
+    st.metric("Discovery Price",f"{price_est:.2f}p")
+    st.metric("Probability Weighted Value",f"{expected:.2f}p")
+
+    ladder_sizes=[100,500,1000,2000,5000]
+    ladder_prices=[]
+
+    for size in ladder_sizes:
+        value=size*oil_price*0.52*1_000_000
+        ladder_prices.append((value/shares_outstanding)*100)
+
+    fig=go.Figure()
+
+    fig.add_trace(go.Bar(
+    x=[str(x)+" MMBO" for x in ladder_sizes],
+    y=ladder_prices,
+    marker_color="gold"
     ))
 
     fig.add_hline(
-        y=price_p,
-        line_color="white",
-        line_dash="dot",
-        annotation_text="Current"
-    )
-
-    # ----------------------------
-    # RERATING LADDER
-    # ----------------------------
-
-    if show_rerating:
-
-        rerating_levels = [1.5,2,2.5,3,4,5,7,10,15,20,25]
-
-        for level in rerating_levels:
-
-            target_price = price_p * level
-
-            implied_mcap = (target_price/100) * shares_outstanding
-
-            fig.add_hline(
-                y=target_price,
-                line_dash="dot",
-                line_color="orange",
-                annotation_text=f"{level}x | {target_price:.2f}p | £{implied_mcap/1e6:.1f}M",
-                annotation_position="right"
-            )
-
-    # ----------------------------
-    # DISCOVERY LADDER
-    # ----------------------------
-
-    if show_discovery:
-
-        discovery_sizes = [500,1000,2000,5000]
-
-        value_per_barrel = 20
-        ownership = 0.52
-
-        for size in discovery_sizes:
-
-            total_value = size * value_per_barrel * ownership * 1_000_000
-
-            price_estimate = (total_value / shares_outstanding) * 100
-
-            fig.add_hline(
-                y=price_estimate,
-                line_dash="dash",
-                line_color="cyan",
-                annotation_text=f"{size}MMBO | {price_estimate:.2f}p",
-                annotation_position="left"
-            )
-
-    fig.update_layout(
-        height=500,
-        plot_bgcolor="#020617",
-        paper_bgcolor="#020617",
-        font=dict(color="#FFD700")
+    y=price_p,
+    line_dash="dash",
+    line_color="red",
+    annotation_text="Current Price"
     )
 
     st.plotly_chart(fig,use_container_width=True)
 
-# -------------------------------------------------
-# PORTFOLIO IMPACT
-# -------------------------------------------------
+# ---------------- LIVE NEWS ----------------
 
-elif menu == "Portfolio Impact":
+elif menu == "Live News":
 
-    st.title("Portfolio Impact")
+    news=ticker.news
 
-    current_shares = st.number_input("Current Shares", value=1_000_000)
+    keywords=["discovery","drilling","flow test","farm-out","resource"]
 
-    scenario_shares = st.slider(
-        "Scenario Shares",
-        1_000_000,
-        250_000_000,
-        current_shares
-    )
+    for article in news[:10]:
 
-    scenario_price = st.slider(
-        "Scenario Share Price (p)",
-        0.1,
-        500.0,
-        price_p
-    )
+        title=article.get("title","")
+        link=article.get("link","")
 
-    scenario_price = scenario_price / 100
+        if any(word in title.lower() for word in keywords):
+            st.markdown("## 🚨 Exploration Alert")
 
-    current_value = current_shares * price
-    scenario_value = scenario_shares * scenario_price
+        st.markdown(f"### {title}")
+        st.markdown(f"[Read article]({link})")
+        st.divider()
 
-    pct_change = ((scenario_value - current_value) / current_value) * 100
+# ---------------- RSS INTELLIGENCE ----------------
 
-    col1,col2,col3 = st.columns(3)
+elif menu == "Exploration Intelligence Feed":
 
-    col1.metric("Current Value", f"£{current_value:,.0f}")
-    col2.metric("Scenario Value", f"£{scenario_value:,.0f}")
-    col3.metric("Change", f"{pct_change:.1f}%")
+    feeds={
+    "Energy Voice":"https://www.energyvoice.com/feed/",
+    "Offshore Magazine":"https://www.offshore-mag.com/rss"
+    }
 
-# -------------------------------------------------
-# MARKET ACTIVITY
-# -------------------------------------------------
+    for source,url in feeds.items():
 
-elif menu == "Market Activity":
+        st.subheader(source)
 
-    st.title("Market Activity")
+        feed=feedparser.parse(url)
 
-    trades = ticker.history(period="5d", interval="5m")
+        for entry in feed.entries[:5]:
 
-    trades = trades.reset_index()
+            st.markdown(f"**{entry.title}**")
+            st.markdown(f"[Read Article]({entry.link})")
+            st.divider()
 
-    trades["Prev"] = trades["Close"].shift(1)
+# ---------------- GLOBAL MAP ----------------
 
-    def classify(row):
-        if row["Close"] > row["Prev"]:
-            return "Buy"
-        elif row["Close"] < row["Prev"]:
-            return "Sell"
-        return "NEUTRAL"
+elif menu == "Global Exploration Map":
 
-    trades["Side"] = trades.apply(classify, axis=1)
+    basin_locations = pd.DataFrame({
 
-    table = trades[["Datetime","Close","Volume","Side"]]
+    "Company":[
+    "United Oil & Gas",
+    "Eco Atlantic",
+    "Pantheon Resources",
+    "88 Energy",
+    "ReconAfrica"
+    ],
 
-    table.columns = ["Time","Price","Volume","Side"]
+    "Latitude":[18.2,6.0,69.5,70.0,-18.5],
+    "Longitude":[-76.7,-57.0,-150.0,-148.0,20.0]
 
-    st.dataframe(table.tail(200),use_container_width=True)
+    })
 
-# -------------------------------------------------
-# SCENARIO LAB
-# -------------------------------------------------
+    fig = go.Figure()
 
-elif menu == "Scenario Lab":
-
-    st.title("Scenario Lab")
-
-    rerate = st.slider("Re-Rating Multiple",1.0,30.0,5.0)
-
-    scenario_price = price_p * rerate
-
-    st.write(f"Scenario Price: **{scenario_price:.2f}p**")
-
-# -------------------------------------------------
-# DISCOVERY SIMULATOR
-# -------------------------------------------------
-
-elif menu == "Discovery Simulator":
-
-    st.title("Walton Morant Discovery Simulator")
-
-    discovery_size = st.slider("Discovery Size (MMBO)",100,5000,1000)
-    value_per_barrel = st.slider("Value per Barrel ($)",5,80,20)
-    ownership = st.slider("UOG Ownership %",10,100,52)
-
-    total_value = discovery_size * value_per_barrel * (ownership/100) * 1_000_000
-
-    price_estimate = (total_value / shares_outstanding) * 100
-
-    st.write(f"Estimated Share Price: **{price_estimate:.2f}p**")
-
-    size_range = np.linspace(100,5000,30)
-    value_range = np.linspace(5,80,30)
-
-    X,Y = np.meshgrid(size_range,value_range)
-
-    Z = (X*Y*(ownership/100)*1_000_000)/shares_outstanding*100
-
-    fig = go.Figure(data=[go.Surface(x=X,y=Y,z=Z,colorscale="YlOrRd")])
-
-    fig.update_layout(
-        scene=dict(
-            xaxis_title="Discovery Size",
-            yaxis_title="Value per Barrel",
-            zaxis_title="Share Price (p)"
-        ),
-        height=500
-    )
+    fig.add_trace(go.Scattergeo(
+        lon = basin_locations["Longitude"],
+        lat = basin_locations["Latitude"],
+        text = basin_locations["Company"],
+        mode = "markers",
+        marker = dict(size = 12,color = "gold")
+    ))
 
     st.plotly_chart(fig,use_container_width=True)
