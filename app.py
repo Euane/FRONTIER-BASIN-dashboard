@@ -260,11 +260,39 @@ border:3px solid white !important;
     # Horizontal metrics
     col1, col2 = st.columns(2)
 
-    with col1:
-        st.metric("Discovery Price", f"{price_est:.2f}p")
+  st.markdown(f"""
+<div style="
+display:flex;
+justify-content:space-between;
+align-items:center;
+gap:12px;
+font-size:14px;
+margin-top:-6px;
+margin-bottom:-6px;
+">
 
-    with col2:
-        st.metric("Probability Weighted Value", f"{expected:.2f}p")
+<div>
+<span style="color:white">Discovery Price</span><br>
+<b style="color:gold">{price_est:.2f}p</b>
+</div>
+
+<div>
+<span style="color:white">Probability Weighted</span><br>
+<b style="color:gold">{expected:.2f}p</b>
+</div>
+
+<div>
+<span style="color:white">Oil Price</span><br>
+<b style="color:gold">${oil_price}</b>
+</div>
+
+<div>
+<span style="color:white">COS</span><br>
+<b style="color:gold">{cos}%</b>
+</div>
+
+</div>
+""", unsafe_allow_html=True)
 
     # Reduce space before chart
     st.markdown("<div style='margin-top:-20px'></div>", unsafe_allow_html=True)
