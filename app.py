@@ -5,40 +5,38 @@ import pandas as pd
 import numpy as np
 import feedparser
 
-st.set_page_config(page_title="Exploration Valuation Dashboard", layout="wide")
+st.set_page_config(page_title="Exploration Intelligence Terminal", layout="wide")
 
-# ---------- GLOBAL STYLE ----------
+# ---------------- MOBILE UI + COMPRESSION ----------------
 
 st.markdown("""
 <style>
 
-body{
-background:#020617;
-color:#FFD700;
-}
+body {background:#020617;color:#FFD700;}
 
 .block-container{
-padding-top:1rem;
-padding-bottom:1rem;
+padding-top:0.2rem;
+padding-bottom:0.2rem;
 }
 
-/* ticker */
+/* sticky ticker header */
 
 .ticker{
 position:sticky;
 top:0;
 background:#111827;
-padding:8px;
-font-weight:bold;
+padding:4px;
 border-bottom:2px solid gold;
+font-size:12px;
+font-weight:bold;
 z-index:999;
 }
 
-/* slider styling */
+/* compact sliders */
 
 div[data-baseweb="slider"] > div > div{
 background:white !important;
-height:6px;
+height:5px;
 }
 
 div[data-baseweb="slider"] span{
@@ -50,88 +48,146 @@ background:gold !important;
 border:2px solid white !important;
 }
 
-/* reduce label spacing */
+/* compact tables */
 
-.stSlider label{
-margin-bottom:-8px;
+[data-testid="stDataFrame"]{
+font-size:12px;
 }
 
-/* charts */
+/* bottom control bar */
 
-.js-plotly-plot{
-box-shadow:0 0 10px rgba(255,215,0,0.4);
-border-radius:8px;
+.bottom-bar{
+position:fixed;
+bottom:0;
+left:0;
+right:0;
+background:#111827;
+border-top:2px solid gold;
+padding:6px;
+display:flex;
+justify-content:space-around;
+font-size:12px;
+z-index:999;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
-# ---------- STOCK SELECT ----------
+# ---------------- DATA FUNCTIONS ----------------
+
+@st.cache_data(ttl=300)
+def get_intraday(ticker):
+    return yf.Ticker(ticker).history(period="1d", interval="5m")
+
+@st.cache_data(ttl=600)
+def get_history(ticker, period="6mo"):
+    return yf.Ticker(ticker).history(period=period)
+
+@st.cache_data(ttl=3600)
+def get_shares(ticker):
+    tk = yf.Ticker(ticker)
+    fast = tk.fast_info
+    shares = fast.get("sharesOutstanding")
+    if shares is None:
+        shares = tk.info.get("sharesOutstanding",0)
+    return shares
+
+# ---------------- CONTROL BAR STATE ----------------
+
+if "tf" not in st.session_state:
+    st.session_state.tf="6M"
+
+if "ma5" not in st.session_state:
+    st.session_state.ma5=False
+
+if "ma20" not in st.session_state:
+    st.session_state.ma20=False
+
+if "ma50" not in st.session_state:
+    st.session_state.ma50=False
+
+if "vol" not in st.session_state:
+    st.session_state.vol=False
+
+# ---------------- STOCK SELECT ----------------
 
 ticker_symbol = st.selectbox(
-"Select Exploration Stock",
+"Stock",
 ["UOG.L","ECO.L","PANR.L","88E.L","RECAF"]
 )
 
-ticker = yf.Ticker(ticker_symbol)
+intraday = get_intraday(ticker_symbol)
 
-# ---------- MARKET DATA ----------
+price_p = intraday["Close"].iloc[-1]
+price_gbp = price_p / 100
 
-intraday = ticker.history(period="1d", interval="5m")
+shares_outstanding = get_shares(ticker_symbol)
 
-price = intraday["Close"].iloc[-1]
-prev_price = intraday["Close"].iloc[0]
+market_cap = price_gbp * shares_outstanding
 
-price_p = price 
-
-shares_outstanding = 4.66e9
-market_cap = price_p * shares_outstanding
-
-volume_today = intraday["Volume"].sum()
-change_pct = ((price-prev_price)/prev_price)*100
-
-# ---------- FLOATING TICKER ----------
+# ---------------- HEADER ----------------
 
 st.markdown(f"""
 <div class="ticker">
-{ticker_symbol} | Price {price_p:.3f}p | Change {change_pct:+.2f}% |
-Volume {volume_today:,.0f} | Market Cap £{market_cap/1e6:.2f}M
+{ticker_symbol} | {price_p:.3f}p | Shares {shares_outstanding/1e9:.2f}B | MCap £{market_cap/1e6:.2f}M
 </div>
 """, unsafe_allow_html=True)
 
-st.divider()
+# ---------------- HAMBURGER MENU ----------------
 
-# ---------- MENU ----------
+if "menu_open" not in st.session_state:
+    st.session_state.menu_open=False
 
-menu = st.sidebar.selectbox(
-"Menu",
-[
+if "page" not in st.session_state:
+    st.session_state.page="Dashboard"
+
+col1,col2=st.columns([1,10])
+
+with col1:
+    if st.button("☰"):
+        st.session_state.menu_open=not st.session_state.menu_open
+
+pages=[
 "Dashboard",
-"Your Portfolio",
 "Market Activity",
+"Your Portfolio",
 "Discovery Simulator",
-"Live News",
-"Exploration Intelligence Feed",
-"Global Exploration Map"
+"Multi-Ticker Comparison",
+"Drilling Catalysts",
+"RNS Alerts",
+"Exploration Intelligence",
+"Exploration Map",
+"Basin Bubble Map"
 ]
-)
 
-# ---------- DASHBOARD ----------
+if st.session_state.menu_open:
+    for p in pages:
+        if st.button(p):
+            st.session_state.page=p
+            st.session_state.menu_open=False
 
-if menu == "Dashboard":
+page=st.session_state.page
 
-    hist = ticker.history(period="6mo")
+# ---------------- DASHBOARD ----------------
 
-    hist["MA5"] = hist["Close"].rolling(5).mean()
-    hist["MA20"] = hist["Close"].rolling(20).mean()
-    hist["MA50"] = hist["Close"].rolling(50).mean()
+if page=="Dashboard":
 
-    show_ma5 = st.checkbox("MA5",True)
-    show_ma20 = st.checkbox("MA20",True)
-    show_ma50 = st.checkbox("MA50",True)
-    show_volume = st.checkbox("Volume",True)
+    period_map={
+    "1D":"1d",
+    "1W":"7d",
+    "1M":"1mo",
+    "3M":"3mo",
+    "6M":"6mo",
+    "1Y":"1y"
+    }
 
-    fig = go.Figure()
+    hist=get_history(ticker_symbol,period_map[st.session_state.tf])
+
+    hist["MA5"]=hist["Close"].rolling(5).mean()
+    hist["MA20"]=hist["Close"].rolling(20).mean()
+    hist["MA50"]=hist["Close"].rolling(50).mean()
+
+    fig=go.Figure()
 
     fig.add_trace(go.Candlestick(
         x=hist.index,
@@ -141,217 +197,208 @@ if menu == "Dashboard":
         close=hist["Close"]
     ))
 
-    if show_ma5:
-        fig.add_trace(go.Scatter(x=hist.index,y=hist["MA5"],line=dict(color="lime"),name="MA5"))
+    if st.session_state.ma5:
+        fig.add_trace(go.Scatter(x=hist.index,y=hist["MA5"],line=dict(color="lime")))
 
-    if show_ma20:
-        fig.add_trace(go.Scatter(x=hist.index,y=hist["MA20"],line=dict(color="gold"),name="MA20"))
+    if st.session_state.ma20:
+        fig.add_trace(go.Scatter(x=hist.index,y=hist["MA20"],line=dict(color="gold")))
 
-    if show_ma50:
-        fig.add_trace(go.Scatter(x=hist.index,y=hist["MA50"],line=dict(color="orange"),name="MA50"))
+    if st.session_state.ma50:
+        fig.add_trace(go.Scatter(x=hist.index,y=hist["MA50"],line=dict(color="orange")))
 
-    if show_volume:
-        fig.add_trace(go.Bar(x=hist.index,y=hist["Volume"],name="Volume",yaxis="y2"))
+    if st.session_state.vol:
+        fig.add_trace(go.Bar(x=hist.index,y=hist["Volume"],yaxis="y2"))
         fig.update_layout(yaxis2=dict(overlaying="y",side="right"))
 
     st.plotly_chart(fig,use_container_width=True)
 
-# ---------- PORTFOLIO ----------
+# ---------------- MARKET ACTIVITY ----------------
 
-elif menu == "Your Portfolio":
+elif page=="Market Activity":
 
-    shares = st.number_input("Your Shares",value=1000000)
+    hist=get_history(ticker_symbol,"5d")
 
-    rerate = st.select_slider(
-    "Rerating Multiple",
-    options=[1,2,3,4,5,7,10,15,20,25]
-    )
+    hist["Change"]=hist["Close"].pct_change()*100
+    hist["Trade"]=np.where(hist["Change"]>0,"Buy","Sell")
 
-    scenario_price = price * rerate
+    st.dataframe(hist[["Close","Volume","Change","Trade"]])
 
-    scenario_value = shares * scenario_price
-    current_value = shares * price
+# ---------------- PORTFOLIO ----------------
 
-    pct = ((scenario_value-current_value)/current_value)*100
+elif page=="Your Portfolio":
 
-    st.write(f"Current Value: £{current_value:,.0f}")
-    st.write(f"Scenario Value: £{scenario_value:,.0f}")
-    st.write(f"Change: {pct:.1f}%")
+    shares_owned=st.number_input("Shares",value=1000000)
 
-# ---------- MARKET ACTIVITY ----------
+    value=shares_owned*price_gbp
 
-elif menu == "Market Activity":
+    st.markdown(f"### Holding Value £{value:,.0f}")
 
-    hist = ticker.history(period="5d", interval="5m")
+    reratings=[1.5,2,2.5,3,4,5,7,10,15,20]
 
-    hist["Prev"]=hist["Close"].shift(1)
+    data=[]
 
-    buy=(hist["Close"]>hist["Prev"]).sum()
-    sell=(hist["Close"]<hist["Prev"]).sum()
+    for r in reratings:
 
-    total=buy+sell
+        new_price=price_p*r
+        val=shares_owned*(new_price/100)
 
-    buy_pct=buy/total*100
-    sell_pct=sell/total*100
+        data.append([f"{r}x",f"{new_price:.2f}p",f"£{val:,.0f}"])
 
-    st.progress(buy_pct/100)
+    st.table(pd.DataFrame(data,columns=["Rerating","Price","Value"]))
 
-    st.write(f"BUY {buy_pct:.1f}%")
-    st.write(f"SELL {sell_pct:.1f}%")
+# ---------------- DISCOVERY SIMULATOR ----------------
 
-# ---------- DISCOVERY SIMULATOR ----------
+elif page=="Discovery Simulator":
 
-elif menu == "Discovery Simulator":
+    discovery=st.slider("Discovery MMBO",100,5000,1000)
+    oil_price=st.slider("Oil Price $",40,120,70)
+    cos=st.slider("Chance of Success %",5,80,20)
 
-    discovery = st.slider("Discovery Size (MMBO)",100,5000,1000)
+    discovery_value=discovery*oil_price*0.52*1_000_000
 
-    oil_price = st.slider("Oil Price ($)",40,120,70)
+    price_est_p=(discovery_value/shares_outstanding)*100
 
-    cos = st.slider("Chance of Success (%)",5,80,20)
+    expected=price_est_p*(cos/100)
 
-    value = discovery * oil_price * 0.52 * 1_000_000
+    st.write("Discovery Price",f"{price_est_p:.2f}p")
+    st.write("Probability Weighted",f"{expected:.2f}p")
 
-    price_est = (value/shares_outstanding) * 100
-    expected = price_est * (cos/100)
+# ---------------- MULTI TICKER ----------------
 
-    # ---------- COMPACT VALUE ROW ----------
+elif page=="Multi-Ticker Comparison":
 
-    st.markdown(f"""
-    <div style="
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    gap:12px;
-    font-size:13px;
-    margin-top:-6px;
-    margin-bottom:-6px;
-    ">
+    tickers=["UOG.L","ECO.L","PANR.L","88E.L","RECAF"]
 
-    <div>
-    <span style="color:white">Discovery Price</span><br>
-    <b style="color:gold">{price_est:.2f}p</b>
-    </div>
+    oil_price=st.slider("Oil Price",40,120,70)
 
-    <div>
-    <span style="color:white">Probability Weighted</span><br>
-    <b style="color:gold">{expected:.2f}p</b>
-    </div>
-
-    <div>
-    <span style="color:white">Oil Price</span><br>
-    <b style="color:gold">${oil_price}</b>
-    </div>
-
-    <div>
-    <span style="color:white">COS</span><br>
-    <b style="color:gold">{cos}%</b>
-    </div>
-
-    </div>
-    """, unsafe_allow_html=True)
-
-    # ---------- VALUE LADDER ----------
-
-    ladder_sizes=[100,500,1000,2000,5000]
-    ladder_prices=[]
-
-    for size in ladder_sizes:
-        value=size*oil_price*0.52*1_000_000
-        ladder_prices.append((value/shares_outstanding)*100)
+    ladder=[100,500,1000,2000,5000]
 
     fig=go.Figure()
 
-    fig.add_trace(go.Bar(
-        x=[str(x)+" MMBO" for x in ladder_sizes],
-        y=ladder_prices,
-        marker_color="gold"
-    ))
+    for t in tickers:
 
-    fig.add_hline(
-        y=price_p,
-        line_dash="dash",
-        line_color="red",
-        annotation_text="Current Price"
-    )
+        shares=get_shares(t)
 
-    fig.update_layout(
-        height=420,
-        margin=dict(t=10,b=10,l=10,r=10),
-        plot_bgcolor="#020617",
-        paper_bgcolor="#020617",
-        font=dict(color="#FFD700")
-    )
+        prices=[(size*oil_price*0.52*1_000_000/shares)*100 for size in ladder]
+
+        fig.add_trace(go.Scatter(x=ladder,y=prices,mode="lines+markers",name=t))
 
     st.plotly_chart(fig,use_container_width=True)
 
-# ---------- LIVE NEWS ----------
+# ---------------- DRILLING ----------------
 
-elif menu == "Live News":
+elif page=="Drilling Catalysts":
 
-    news=ticker.news
+    df=pd.DataFrame({
+    "Company":["UOG","Eco Atlantic","Pantheon","88 Energy","ReconAfrica"],
+    "Prospect":["Walton Morant","Orinduik","Kodiak","Hickory","Kavango"],
+    "Stage":["Planning","Drilling","Testing","Drilling","Exploration"]
+    })
 
-    keywords=["discovery","drilling","flow test","farm-out","resource"]
+    st.dataframe(df)
 
-    for article in news[:10]:
+# ---------------- RNS ----------------
 
-        title=article.get("title","")
-        link=article.get("link","")
+elif page=="RNS Alerts":
 
-        if any(word in title.lower() for word in keywords):
-            st.markdown("### 🚨 Exploration Alert")
+    feed=feedparser.parse("https://www.investegate.co.uk/Rss.aspx")
 
-        st.markdown(f"{title}")
-        st.markdown(f"[Read article]({link})")
-        st.divider()
+    for entry in feed.entries[:20]:
 
-# ---------- RSS FEED ----------
+        if ticker_symbol.split(".")[0].lower() in entry.title.lower():
 
-elif menu == "Exploration Intelligence Feed":
-
-    feeds={
-    "Energy Voice":"https://www.energyvoice.com/feed/",
-    "Offshore Magazine":"https://www.offshore-mag.com/rss"
-    }
-
-    for source,url in feeds.items():
-
-        st.subheader(source)
-
-        feed=feedparser.parse(url)
-
-        for entry in feed.entries[:5]:
-
+            st.markdown("🚨 **RNS Alert**")
             st.write(entry.title)
             st.write(entry.link)
             st.divider()
 
-# ---------- GLOBAL MAP ----------
+# ---------------- NEWS ----------------
 
-elif menu == "Global Exploration Map":
+elif page=="Exploration Intelligence":
 
-    basin_locations = pd.DataFrame({
+    keywords=["discovery","drilling","well","spud","farm","seismic"]
 
-    "Company":[
-    "United Oil & Gas",
-    "Eco Atlantic",
-    "Pantheon Resources",
-    "88 Energy",
-    "ReconAfrica"
-    ],
+    feeds={
+    "Energy Voice":"https://www.energyvoice.com/feed/",
+    "Rigzone":"https://www.rigzone.com/news/rss/rigzone_headlines/",
+    "OilPrice":"https://oilprice.com/rss/main"
+    }
 
-    "Latitude":[18.2,6.0,69.5,70.0,-18.5],
-    "Longitude":[-76.7,-57.0,-150.0,-148.0,20.0]
+    for name,url in feeds.items():
 
+        feed=feedparser.parse(url)
+
+        for entry in feed.entries:
+
+            title=entry.title.lower()
+
+            if any(k in title for k in keywords):
+
+                st.markdown(f"**{entry.title}**")
+                st.write(entry.link)
+                st.divider()
+
+# ---------------- MAP ----------------
+
+elif page=="Exploration Map":
+
+    df=pd.DataFrame({
+    "Company":["UOG","Eco Atlantic","Pantheon","88 Energy","ReconAfrica"],
+    "Lat":[18.2,6.0,69.5,70.0,-18.5],
+    "Lon":[-76.7,-57,-150,-148,20]
     })
 
-    fig = go.Figure()
+    fig=go.Figure()
 
     fig.add_trace(go.Scattergeo(
-        lon = basin_locations["Longitude"],
-        lat = basin_locations["Latitude"],
-        text = basin_locations["Company"],
-        mode = "markers",
-        marker = dict(size = 12,color = "gold")
+    lon=df["Lon"],
+    lat=df["Lat"],
+    text=df["Company"],
+    mode="markers",
+    marker=dict(size=12,color="gold")
     ))
 
     st.plotly_chart(fig,use_container_width=True)
+
+# ---------------- BASIN MAP ----------------
+
+elif page=="Basin Bubble Map":
+
+    df=pd.DataFrame({
+    "Company":["UOG","Eco Atlantic","Pantheon","88 Energy","ReconAfrica"],
+    "Lat":[18.2,6.0,69.5,70.0,-18.5],
+    "Lon":[-76.7,-57,-150,-148,20],
+    "Basin":[2.4,2.9,17,6,120]
+    })
+
+    fig=go.Figure()
+
+    fig.add_trace(go.Scattergeo(
+    lon=df["Lon"],
+    lat=df["Lat"],
+    text=df["Company"],
+    mode="markers",
+    marker=dict(size=df["Basin"]*0.5,color="gold")
+    ))
+
+    st.plotly_chart(fig,use_container_width=True)
+
+# ---------------- BOTTOM CONTROL BAR ----------------
+
+col1,col2,col3,col4,col5=st.columns(5)
+
+with col1:
+    st.session_state.tf=st.selectbox("TF",["1D","1W","1M","3M","6M","1Y"],index=4,label_visibility="collapsed")
+
+with col2:
+    st.session_state.ma5=st.checkbox("MA5",value=st.session_state.ma5)
+
+with col3:
+    st.session_state.ma20=st.checkbox("MA20",value=st.session_state.ma20)
+
+with col4:
+    st.session_state.ma50=st.checkbox("MA50",value=st.session_state.ma50)
+
+with col5:
+    st.session_state.vol=st.checkbox("Vol",value=st.session_state.vol)
+
