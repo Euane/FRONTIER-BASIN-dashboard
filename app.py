@@ -401,4 +401,3 @@ with col4:
 
 with col5:
     st.session_state.vol=st.checkbox("Vol",value=st.session_state.vol)
-
