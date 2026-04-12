@@ -31,7 +31,7 @@ padding:12px;
 position:sticky;
 top:0;
 background:#111827;
-padding:5px;
+padding:2px;
 font-weight:bold;
 border-bottom:2px solid gold;
 z-index:999;
@@ -64,7 +64,7 @@ prev_price = intraday["Close"].iloc[0]
 price_p = price
 
 shares_outstanding = 4.66e9
-market_cap = price * shares_outstanding
+market_cap = (price * shares_outstanding)/100
 
 volume_today = intraday["Volume"].sum()
 change_pct = ((price-prev_price)/prev_price)*100
@@ -78,7 +78,7 @@ Volume {volume_today:,.0f} | Market Cap £{market_cap/1e6:.2f}M
 </div>
 """, unsafe_allow_html=True)
 
-st.divider()
+
 
 # ---------------- MENU ----------------
 
