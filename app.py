@@ -126,13 +126,15 @@ if "vol" not in st.session_state:
     st.session_state.vol = False
 
 # ---------------- STOCK SELECT ----------------
+
+st.markdown(f"""
 <div class="select">
 ticker_symbol = st.selectbox(
 "Stock",
 ["UOG.L","ECO.L","PANR.L","88E.L","RECAF"]
 )
 </div>
-
+""", unsafe_allow_html=True)
 Currency_symbol = st.selectbox(
 "Curency",
 ["USD","GBP","CAD","EUR","JMD"]
