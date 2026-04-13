@@ -118,19 +118,19 @@ if "vol" not in st.session_state:
 # ---------------- STOCK SELECT ----------------
 
 
+col1, col2 = st.columns([3,1])
 
-ticker_symbol = st.selectbox(
-"Stock",
-["UOG.L","ECO.L","PANR.L","88E.L","RECAF"]
-)
+with col1:
+    ticker_symbol = st.selectbox(
+        "Stock",
+        ["UOG.L","ECO.L","PANR.L","88E.L","RECAF"]
+    )
 
-
-Currency_symbol = st.selectbox(
-"Curency",
-["USD","GBP","CAD","EUR","JMD"]
-)
-
-
+with col2:
+    Currency_symbol = st.selectbox(
+        "Currency",
+        ["USD","GBP","CAD","EUR","JMD"]
+    )
 
 intraday = get_intraday(ticker_symbol)
 
