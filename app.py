@@ -30,7 +30,6 @@ font-weight:bold;
 z-index:999;
 }
 
-
 div[data-baseweb="slider"] > div > div{
 background:white !important;
 height:5px;
@@ -87,7 +86,6 @@ def get_shares(ticker):
     except:
         pass
 
-    # fallback shares (prevents crashes)
     fallback = {
         "UOG.L": 4.42e9,
         "ECO.L": 2.42e9,
@@ -117,17 +115,19 @@ if "vol" not in st.session_state:
 
 # ---------------- STOCK SELECT ----------------
 
-col1, col2 = st.columns([3,1])
+col1,col2 = st.columns([3,1])
 
-ticker_symbol = col1.selectbox(
-    "",
-    ["UOG.L","ECO.L","PANR.L","88E.L","RECAF"]
-)
+with col1:
+    ticker_symbol = st.selectbox(
+        "Stock",
+        ["UOG.L","ECO.L","PANR.L","88E.L","RECAF"]
+    )
 
-Currency_symbol = col2.selectbox(
-    "",
-    ["USD","GBP","CAD","EUR","JMD"]
-)
+with col2:
+    Currency_symbol = st.selectbox(
+        "Currency",
+        ["USD","GBP","CAD","EUR","JMD"]
+    )
 
 intraday = get_intraday(ticker_symbol)
 
@@ -145,11 +145,8 @@ market_cap = price_gbp * shares_outstanding
 # ---------------- HEADER ----------------
 
 st.markdown(f"""
-
-{ticker_symbol} | {price_p:.3f}p | Shares {shares_outstanding/1e9:.2f}B | MCap £{market_cap/1e6:.2f}M | Pe £{market_cap/1e6:.2f}M
-
-""", unsafe_allow_html=True)
-
+{ticker_symbol} | {price_p:.3f}p | Shares {shares_outstanding/1e9:.2f}B | MCap £{market_cap/1e6:.2f}M
+""")
 
 # ---------------- HAMBURGER MENU ----------------
 
@@ -279,33 +276,10 @@ elif page=="Discovery Simulator":
     discovery_value=discovery*oil_price*0.52*1_000_000
 
     price_est_p=(discovery_value/shares_outstanding)*100
-
     expected=price_est_p*(cos/100)
 
     st.write("Discovery Price",f"{price_est_p:.2f}p")
     st.write("Probability Weighted",f"{expected:.2f}p")
-
-# ---------------- MULTI TICKER ----------------
-
-elif page=="Multi-Ticker Comparison":
-
-    tickers=["UOG.L","ECO.L","PANR.L","88E.L","RECAF"]
-
-    oil_price=st.slider("Oil Price",40,120,70)
-
-    ladder=[100,500,1000,2000,5000]
-
-    fig=go.Figure()
-
-    for t in tickers:
-
-        shares=get_shares(t)
-
-        prices=[(size*oil_price*0.52*1_000_000/shares)*100 for size in ladder]
-
-        fig.add_trace(go.Scatter(x=ladder,y=prices,mode="lines+markers",name=t))
-
-    st.plotly_chart(fig,use_container_width=True)
 
 # ---------------- DRILLING ----------------
 
@@ -319,33 +293,82 @@ elif page=="Drilling Catalysts":
 
     st.dataframe(df)
 
-# ---------------- RNS ----------------
+# ---------------- RNS ALERTS ----------------
 
 elif page=="RNS Alerts":
 
-    feed=feedparser.parse("https://www.investegate.co.uk/Rss.aspx")
+    st.subheader("Live RNS Monitor")
 
-    for entry in feed.entries[:20]:
+    ticker = ticker_symbol.split(".")[0].lower()
 
-        if ticker_symbol.split(".")[0].lower() in entry.title.lower():
+    rns_feeds = {
+        "Investegate":"https://www.investegate.co.uk/Rss.aspx",
+        "LSE":"https://www.lse.co.uk/rss/rns.xml"
+    }
 
-            st.markdown("🚨 **RNS Alert**")
-            st.write(entry.title)
-            st.write(entry.link)
-            st.divider()
+    exploration_keywords=[
+        "discovery",
+        "drilling",
+        "spud",
+        "farm-out",
+        "hydrocarbon",
+        "flow test",
+        "prospect"
+    ]
+
+    seen=set()
+    alerts=False
+
+    for source,url in rns_feeds.items():
+
+        try:
+
+            feed=feedparser.parse(url)
+
+            for entry in feed.entries[:50]:
+
+                title=entry.title.lower()
+
+                if ticker in title:
+
+                    if title in seen:
+                        continue
+
+                    seen.add(title)
+                    alerts=True
+
+                    if any(k in title for k in exploration_keywords):
+
+                        st.markdown("🔥 **Exploration RNS Alert**")
+
+                    else:
+
+                        st.markdown("🚨 **RNS Announcement**")
+
+                    st.write(entry.title)
+                    st.write(entry.link)
+                    st.caption(source)
+
+                    st.divider()
+
+        except:
+
+            st.warning(f"{source} feed unavailable")
+
+    if not alerts:
+        st.info("No recent RNS announcements found.")
 
 # ---------------- NEWS ----------------
 
 elif page=="Exploration Intelligence":
 
-    keywords=["discovery","drilling","well","spud","farm","seismic","hydrocarbon","petroleum system","piston core","RNS", "UOG"]
+    keywords=["discovery","drilling","well","spud","farm","seismic","hydrocarbon","petroleum system"]
 
     feeds={
     "Energy Voice":"https://www.energyvoice.com/feed/",
     "Rigzone":"https://www.rigzone.com/news/rss/rigzone_headlines/",
     "OilPrice":"https://oilprice.com/rss/main",
-    "World Oil":"https://www.worldoil.com/rss?feed=news",
-    "Oil and gas":"https://www.oilandgas360.com/feed/"
+    "World Oil":"https://www.worldoil.com/rss?feed=news"
     }
 
     for name,url in feeds.items():
