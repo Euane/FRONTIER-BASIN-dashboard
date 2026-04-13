@@ -88,7 +88,7 @@ def get_shares(ticker):
 
     # fallback shares (prevents crashes)
     fallback = {
-        "UOG.L": 4.66e9,
+        "UOG.L": 4.4e9,
         "ECO.L": 2.42e9,
         "PANR.L": 1.20e9,
         "88E.L": 8.90e9,
@@ -138,7 +138,11 @@ market_cap = price_gbp * shares_outstanding
 
 st.markdown(f"""
 <div class="ticker">
-{ticker_symbol} | {price_p:.3f}p | Shares {shares_outstanding/1e9:.2f}B | MCap £{market_cap/1e6:.2f}M
+{ticker_symbol} | {price_p:.3f}p | Shares {shares_outstanding/1e9:.2f}B | MCap £{market_cap/1e6:.2f}M | Pe £{market_cap/1e6:.2f}M
+</div>
+""", unsafe_allow_html=True)
+<div class="ticker">
+{ticker_symbol} | {price_p:.3f}p | Shares {shares_outstanding/1e9:.2f}B | MCap £{market_cap/1e6:.2f}M | Pe £{market_cap/1e6:.2f}M
 </div>
 """, unsafe_allow_html=True)
 
