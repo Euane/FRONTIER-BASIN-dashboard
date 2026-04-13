@@ -121,6 +121,11 @@ ticker_symbol = st.selectbox(
 ["UOG.L","ECO.L","PANR.L","88E.L","RECAF"]
 )
 
+Currency_symbol = st.selectbox(
+"Curency",
+["USD","GBP","CAD","EUR","JMD"]
+)
+
 intraday = get_intraday(ticker_symbol)
 
 if not intraday.empty:
