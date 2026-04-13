@@ -135,44 +135,44 @@ if "vol" not in st.session_state:
 
 # ---------------- SELECTORS ----------------
 
-col1,col2=st.columns([3,1])
+col1,col2 = st.columns([3,1])
 
 with col1:
     ticker_symbol = st.selectbox(
-    "Stock",
-    ["UOG.L","ECO.L","PANR.L","88E.L","RECAF"]
+        "Stock",
+        ["UOG.L","ECO.L","PANR.L","88E.L","RECAF"]
     )
 
 with col2:
     currency_symbol = st.selectbox(
-    "Currency",
-    ["USD","GBP","CAD","EUR","JMD"]
+        "Currency",
+        ["USD","GBP","CAD","EUR","JMD"]
     )
 
-# ---------------- PRICE DATA ----------------
+# ---------------- PRICE ----------------
 
-intraday=get_intraday(ticker_symbol)
+intraday = get_intraday(ticker_symbol)
 
 if not intraday.empty:
-    price_p=intraday["Close"].iloc[-1]
+    price_p = intraday["Close"].iloc[-1]
 else:
-    price_p=0.25
+    price_p = 0.25
 
-price_gbp=price_p/100
-
-shares_outstanding=get_shares(ticker_symbol)
-
-market_cap=price_gbp*shares_outstanding
+price_gbp = price_p / 100
+shares_outstanding = get_shares(ticker_symbol)
+market_cap = price_gbp * shares_outstanding
 
 # ---------------- HEADER ----------------
 
 st.markdown(f"""
-{ticker_symbol} | {price_p:.3f}p | Shares {shares_outstanding/1e9:.2f}B | MCap £{market_cap/1e6:.2f}M
-""")
+<div class="ticker">
+{ticker_symbol} | {price_p:.3f}p | Shares {shares_outstanding/1e9:.2f}B | Market Cap £{market_cap/1e6:.2f}M
+</div>
+""", unsafe_allow_html=True)
 
 # ---------------- MENU ----------------
 
-pages=[
+pages = [
 "Dashboard",
 "Market Activity",
 "Your Portfolio",
@@ -185,7 +185,7 @@ pages=[
 "Basin Bubble Map"
 ]
 
-page=st.selectbox("Menu",pages)
+page = st.sidebar.selectbox("Menu", pages)
 
 # ---------------- DASHBOARD ----------------
 
@@ -211,21 +211,24 @@ if page=="Dashboard":
         fig=go.Figure()
 
         fig.add_trace(go.Candlestick(
-        x=hist.index,
-        open=hist["Open"],
-        high=hist["High"],
-        low=hist["Low"],
-        close=hist["Close"]
+            x=hist.index,
+            open=hist["Open"],
+            high=hist["High"],
+            low=hist["Low"],
+            close=hist["Close"]
         ))
 
         if st.session_state.ma5:
-            fig.add_trace(go.Scatter(x=hist.index,y=hist["MA5"]))
+            fig.add_trace(go.Scatter(x=hist.index,y=hist["MA5"],name="MA5"))
 
         if st.session_state.ma20:
-            fig.add_trace(go.Scatter(x=hist.index,y=hist["MA20"]))
+            fig.add_trace(go.Scatter(x=hist.index,y=hist["MA20"],name="MA20"))
 
         if st.session_state.ma50:
-            fig.add_trace(go.Scatter(x=hist.index,y=hist["MA50"]))
+            fig.add_trace(go.Scatter(x=hist.index,y=hist["MA50"],name="MA50"))
+
+        if st.session_state.vol:
+            fig.add_trace(go.Bar(x=hist.index,y=hist["Volume"],yaxis="y2"))
 
         st.plotly_chart(fig,use_container_width=True)
 
@@ -252,6 +255,19 @@ elif page=="Your Portfolio":
 
     st.markdown(f"### Holding Value £{value:,.0f}")
 
+    reratings=[1,1.25,1.5,2,3,5,10,20]
+
+    data=[]
+
+    for r in reratings:
+
+        new_price=price_p*r
+        val=shares_owned*(new_price/100)
+
+        data.append([f"{r}x",f"{new_price:.2f}p",f"£{val:,.0f}"])
+
+    st.table(pd.DataFrame(data,columns=["Rerating","Price","Value"]))
+
 # ---------------- DISCOVERY SIMULATOR ----------------
 
 elif page=="Discovery Simulator":
@@ -268,7 +284,40 @@ elif page=="Discovery Simulator":
     st.write("Discovery Price",f"{price_est_p:.2f}p")
     st.write("Probability Weighted",f"{expected:.2f}p")
 
-# ---------------- RNS ALERTS ----------------
+# ---------------- MULTI TICKER ----------------
+
+elif page=="Multi-Ticker Comparison":
+
+    tickers=["UOG.L","ECO.L","PANR.L","88E.L","RECAF"]
+
+    oil_price=st.slider("Oil Price",40,120,70)
+
+    ladder=[100,500,1000,2000,5000]
+
+    fig=go.Figure()
+
+    for t in tickers:
+
+        shares=get_shares(t)
+        prices=[(size*oil_price*0.52*1_000_000/shares)*100 for size in ladder]
+
+        fig.add_trace(go.Scatter(x=ladder,y=prices,mode="lines+markers",name=t))
+
+    st.plotly_chart(fig,use_container_width=True)
+
+# ---------------- DRILLING ----------------
+
+elif page=="Drilling Catalysts":
+
+    df=pd.DataFrame({
+    "Company":["UOG","Eco Atlantic","Pantheon","88 Energy","ReconAfrica"],
+    "Prospect":["Walton Morant","Orinduik","Kodiak","Hickory","Kavango"],
+    "Stage":["Planning","Drilling","Testing","Drilling","Exploration"]
+    })
+
+    st.dataframe(df)
+
+# ---------------- RNS ----------------
 
 elif page=="RNS Alerts":
 
@@ -295,7 +344,6 @@ elif page=="RNS Alerts":
 
         st.write(r["title"])
         st.write(r["url"])
-
         st.divider()
 
 # ---------------- NEWS ----------------
@@ -337,11 +385,11 @@ elif page=="Exploration Map":
     fig=go.Figure()
 
     fig.add_trace(go.Scattergeo(
-    lon=df["Lon"],
-    lat=df["Lat"],
-    text=df["Company"],
-    mode="markers",
-    marker=dict(size=12)
+        lon=df["Lon"],
+        lat=df["Lat"],
+        text=df["Company"],
+        mode="markers",
+        marker=dict(size=12)
     ))
 
     st.plotly_chart(fig,use_container_width=True)
@@ -360,11 +408,30 @@ elif page=="Basin Bubble Map":
     fig=go.Figure()
 
     fig.add_trace(go.Scattergeo(
-    lon=df["Lon"],
-    lat=df["Lat"],
-    text=df["Company"],
-    mode="markers",
-    marker=dict(size=df["Basin"]*0.5)
+        lon=df["Lon"],
+        lat=df["Lat"],
+        text=df["Company"],
+        mode="markers",
+        marker=dict(size=df["Basin"]*0.5)
     ))
 
     st.plotly_chart(fig,use_container_width=True)
+
+# ---------------- BOTTOM CONTROL BAR ----------------
+
+col1,col2,col3,col4,col5=st.columns(5)
+
+with col1:
+    st.session_state.tf=st.selectbox("TF",["1D","1W","1M","3M","6M","1Y"],index=4,label_visibility="collapsed")
+
+with col2:
+    st.session_state.ma5=st.checkbox("MA5",value=st.session_state.ma5)
+
+with col3:
+    st.session_state.ma20=st.checkbox("MA20",value=st.session_state.ma20)
+
+with col4:
+    st.session_state.ma50=st.checkbox("MA50",value=st.session_state.ma50)
+
+with col5:
+    st.session_state.vol=st.checkbox("Vol",value=st.session_state.vol)
