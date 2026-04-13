@@ -30,16 +30,6 @@ font-weight:bold;
 z-index:999;
 }
 
-.select{
-position:sticky;
-top:0;
-background:#111827;
-padding:4px;
-font-size:12px;
-font-weight:bold;
-width:5px
-z-index:999;
-}
 
 div[data-baseweb="slider"] > div > div{
 background:white !important;
