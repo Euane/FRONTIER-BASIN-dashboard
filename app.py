@@ -147,13 +147,13 @@ shares_outstanding = get_shares(ticker_symbol)
 market_cap = price_gbp * shares_outstanding
 
 # ---------------- HEADER ----------------
-<div class="ticker">
+
 st.markdown(f"""
 
 {ticker_symbol} | {price_p:.3f}p | Shares {shares_outstanding/1e9:.2f}B | MCap £{market_cap/1e6:.2f}M | Pe £{market_cap/1e6:.2f}M
 
 """, unsafe_allow_html=True)
-</div>
+
 
 # ---------------- HAMBURGER MENU ----------------
 
