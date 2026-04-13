@@ -295,68 +295,23 @@ elif page=="Drilling Catalysts":
 
 # ---------------- RNS ALERTS ----------------
 
-elif page=="RNS Alerts":
+elif page == "RNS Alerts":
 
-    st.subheader("Live RNS Monitor")
+    st.subheader("RNS Announcements This Year")
 
-    ticker = ticker_symbol.split(".")[0].lower()
+    ticker = ticker_symbol.split(".")[0]
 
-    rns_feeds = {
-        "Investegate":"https://www.investegate.co.uk/Rss.aspx",
-        "LSE":"https://www.lse.co.uk/rss/rns.xml"
-    }
+    rns_items = get_rns_this_year(ticker)
 
-    exploration_keywords=[
-        "discovery",
-        "drilling",
-        "spud",
-        "farm-out",
-        "hydrocarbon",
-        "flow test",
-        "prospect"
-    ]
+    if len(rns_items) == 0:
+        st.info("No RNS detected.")
 
-    seen=set()
-    alerts=False
+    for item in rns_items:
 
-    for source,url in rns_feeds.items():
-
-        try:
-
-            feed=feedparser.parse(url)
-
-            for entry in feed.entries[:50]:
-
-                title=entry.title.lower()
-
-                if ticker in title:
-
-                    if title in seen:
-                        continue
-
-                    seen.add(title)
-                    alerts=True
-
-                    if any(k in title for k in exploration_keywords):
-
-                        st.markdown("🔥 **Exploration RNS Alert**")
-
-                    else:
-
-                        st.markdown("🚨 **RNS Announcement**")
-
-                    st.write(entry.title)
-                    st.write(entry.link)
-                    st.caption(source)
-
-                    st.divider()
-
-        except:
-
-            st.warning(f"{source} feed unavailable")
-
-    if not alerts:
-        st.info("No recent RNS announcements found.")
+        st.markdown("🚨 **RNS Announcement**")
+        st.write(item["title"])
+        st.write(item["url"])
+        st.divider()
 
 # ---------------- NEWS ----------------
 
