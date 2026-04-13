@@ -115,7 +115,7 @@ if "vol" not in st.session_state:
     st.session_state.vol = False
 
 # ---------------- STOCK SELECT ----------------
-
+<div class="ticker">
 ticker_symbol = st.selectbox(
 "Stock",
 ["UOG.L","ECO.L","PANR.L","88E.L","RECAF"]
@@ -125,6 +125,7 @@ Currency_symbol = st.selectbox(
 "Curency",
 ["USD","GBP","CAD","EUR","JMD"]
 )
+</div>
 
 intraday = get_intraday(ticker_symbol)
 
