@@ -341,12 +341,13 @@ elif page=="RNS Alerts":
 
 elif page=="Exploration Intelligence":
 
-    keywords=["discovery","drilling","well","spud","farm","seismic"]
+    keywords=["discovery","drilling","well","spud","farm","seismic","hydrocarbon","petroleum system","piston core"]
 
     feeds={
     "Energy Voice":"https://www.energyvoice.com/feed/",
     "Rigzone":"https://www.rigzone.com/news/rss/rigzone_headlines/",
-    "OilPrice":"https://oilprice.com/rss/main"
+    "OilPrice":"https://oilprice.com/rss/main",
+    "World Oil":"https://www.worldoil.com/rss?feed=news"
     }
 
     for name,url in feeds.items():
