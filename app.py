@@ -115,7 +115,7 @@ if "vol" not in st.session_state:
     st.session_state.vol = False
 
 # ---------------- STOCK SELECT ----------------
-<div class="ticker">
+<div >
 ticker_symbol = st.selectbox(
 "Stock",
 ["UOG.L","ECO.L","PANR.L","88E.L","RECAF"]
