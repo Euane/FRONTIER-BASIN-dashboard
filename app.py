@@ -30,6 +30,17 @@ font-weight:bold;
 z-index:999;
 }
 
+.select{
+position:sticky;
+top:0;
+background:#111827;
+padding:4px;
+font-size:12px;
+font-weight:bold;
+width:5px
+z-index:999;
+}
+
 div[data-baseweb="slider"] > div > div{
 background:white !important;
 height:5px;
@@ -115,11 +126,12 @@ if "vol" not in st.session_state:
     st.session_state.vol = False
 
 # ---------------- STOCK SELECT ----------------
-
+<div class="select">
 ticker_symbol = st.selectbox(
 "Stock",
 ["UOG.L","ECO.L","PANR.L","88E.L","RECAF"]
 )
+</div>
 
 Currency_symbol = st.selectbox(
 "Curency",
