@@ -252,7 +252,7 @@ elif page=="Your Portfolio":
 
     st.markdown(f"### Holding Value £{value:,.0f}")
 
-    reratings=[1.5,2,2.5,3,4,5,7,10,15,20]
+    reratings=[1,1.25,1.5,2,2.25,2.5,3,3.5,4,4.5,5,6,7,10,15,20,25]
 
     data=[]
 
