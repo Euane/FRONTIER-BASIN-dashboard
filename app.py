@@ -4,6 +4,9 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 import feedparser
+import requests
+from bs4 import BeautifulSoup
+import datetime
 
 st.set_page_config(page_title="Exploration Intelligence Terminal", layout="wide")
 
@@ -11,7 +14,6 @@ st.set_page_config(page_title="Exploration Intelligence Terminal", layout="wide"
 
 st.markdown("""
 <style>
-
 body {background:#020617;color:#FFD700;}
 
 .block-container{
@@ -30,24 +32,9 @@ font-weight:bold;
 z-index:999;
 }
 
-div[data-baseweb="slider"] > div > div{
-background:white !important;
-height:5px;
-}
-
-div[data-baseweb="slider"] span{
-background:gold !important;
-}
-
-div[data-baseweb="slider"] div[role="slider"]{
-background:gold !important;
-border:2px solid white !important;
-}
-
 [data-testid="stDataFrame"]{
 font-size:12px;
 }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -74,73 +61,108 @@ def get_history(ticker, period="6mo"):
 @st.cache_data(ttl=86400)
 def get_shares(ticker):
 
+    fallback = {
+        "UOG.L":4.42e9,
+        "ECO.L":2.42e9,
+        "PANR.L":1.20e9,
+        "88E.L":8.90e9,
+        "RECAF":2.10e8
+    }
+
     try:
         tk = get_ticker(ticker)
-
         fast = tk.fast_info
         shares = fast.get("sharesOutstanding")
-
-        if shares and shares > 0:
+        if shares:
             return shares
+    except:
+        pass
+
+    return fallback.get(ticker,1e9)
+
+# ---------------- RNS SCRAPER ----------------
+
+def get_rns_this_year(ticker):
+
+    year = datetime.datetime.now().year
+    url = f"https://www.investegate.co.uk/company/{ticker}"
+
+    rns = []
+
+    try:
+
+        page = requests.get(url,timeout=10)
+        soup = BeautifulSoup(page.text,"html.parser")
+
+        rows = soup.find_all("tr")
+
+        for r in rows:
+
+            text = r.get_text(" ",strip=True)
+
+            if str(year) in text:
+
+                link = r.find("a")
+
+                if link:
+
+                    rns.append({
+                        "title":link.text,
+                        "url":"https://www.investegate.co.uk"+link["href"]
+                    })
 
     except:
         pass
 
-    fallback = {
-        "UOG.L": 4.42e9,
-        "ECO.L": 2.42e9,
-        "PANR.L": 1.20e9,
-        "88E.L": 8.90e9,
-        "RECAF": 2.10e8
-    }
+    return rns
 
-    return fallback.get(ticker, 1e9)
-
-# ---------------- CONTROL BAR STATE ----------------
+# ---------------- SESSION STATE ----------------
 
 if "tf" not in st.session_state:
-    st.session_state.tf = "6M"
+    st.session_state.tf="6M"
 
 if "ma5" not in st.session_state:
-    st.session_state.ma5 = False
+    st.session_state.ma5=False
 
 if "ma20" not in st.session_state:
-    st.session_state.ma20 = False
+    st.session_state.ma20=False
 
 if "ma50" not in st.session_state:
-    st.session_state.ma50 = False
+    st.session_state.ma50=False
 
 if "vol" not in st.session_state:
-    st.session_state.vol = False
+    st.session_state.vol=False
 
-# ---------------- STOCK SELECT ----------------
+# ---------------- SELECTORS ----------------
 
-col1,col2 = st.columns([3,1])
+col1,col2=st.columns([3,1])
 
 with col1:
     ticker_symbol = st.selectbox(
-        "Stock",
-        ["UOG.L","ECO.L","PANR.L","88E.L","RECAF"]
+    "Stock",
+    ["UOG.L","ECO.L","PANR.L","88E.L","RECAF"]
     )
 
 with col2:
-    Currency_symbol = st.selectbox(
-        "Currency",
-        ["USD","GBP","CAD","EUR","JMD"]
+    currency_symbol = st.selectbox(
+    "Currency",
+    ["USD","GBP","CAD","EUR","JMD"]
     )
 
-intraday = get_intraday(ticker_symbol)
+# ---------------- PRICE DATA ----------------
+
+intraday=get_intraday(ticker_symbol)
 
 if not intraday.empty:
-    price_p = intraday["Close"].iloc[-1]
+    price_p=intraday["Close"].iloc[-1]
 else:
-    price_p = 0.25
+    price_p=0.25
 
-price_gbp = price_p / 100
+price_gbp=price_p/100
 
-shares_outstanding = get_shares(ticker_symbol)
+shares_outstanding=get_shares(ticker_symbol)
 
-market_cap = price_gbp * shares_outstanding
+market_cap=price_gbp*shares_outstanding
 
 # ---------------- HEADER ----------------
 
@@ -148,19 +170,7 @@ st.markdown(f"""
 {ticker_symbol} | {price_p:.3f}p | Shares {shares_outstanding/1e9:.2f}B | MCap £{market_cap/1e6:.2f}M
 """)
 
-# ---------------- HAMBURGER MENU ----------------
-
-if "menu_open" not in st.session_state:
-    st.session_state.menu_open=False
-
-if "page" not in st.session_state:
-    st.session_state.page="Dashboard"
-
-col1,col2=st.columns([1,10])
-
-with col1:
-    if st.button("☰"):
-        st.session_state.menu_open=not st.session_state.menu_open
+# ---------------- MENU ----------------
 
 pages=[
 "Dashboard",
@@ -175,13 +185,7 @@ pages=[
 "Basin Bubble Map"
 ]
 
-if st.session_state.menu_open:
-    for p in pages:
-        if st.button(p):
-            st.session_state.page=p
-            st.session_state.menu_open=False
-
-page=st.session_state.page
+page=st.selectbox("Menu",pages)
 
 # ---------------- DASHBOARD ----------------
 
@@ -207,25 +211,21 @@ if page=="Dashboard":
         fig=go.Figure()
 
         fig.add_trace(go.Candlestick(
-            x=hist.index,
-            open=hist["Open"],
-            high=hist["High"],
-            low=hist["Low"],
-            close=hist["Close"]
+        x=hist.index,
+        open=hist["Open"],
+        high=hist["High"],
+        low=hist["Low"],
+        close=hist["Close"]
         ))
 
         if st.session_state.ma5:
-            fig.add_trace(go.Scatter(x=hist.index,y=hist["MA5"],line=dict(color="lime")))
+            fig.add_trace(go.Scatter(x=hist.index,y=hist["MA5"]))
 
         if st.session_state.ma20:
-            fig.add_trace(go.Scatter(x=hist.index,y=hist["MA20"],line=dict(color="gold")))
+            fig.add_trace(go.Scatter(x=hist.index,y=hist["MA20"]))
 
         if st.session_state.ma50:
-            fig.add_trace(go.Scatter(x=hist.index,y=hist["MA50"],line=dict(color="orange")))
-
-        if st.session_state.vol:
-            fig.add_trace(go.Bar(x=hist.index,y=hist["Volume"],yaxis="y2"))
-            fig.update_layout(yaxis2=dict(overlaying="y",side="right"))
+            fig.add_trace(go.Scatter(x=hist.index,y=hist["MA50"]))
 
         st.plotly_chart(fig,use_container_width=True)
 
@@ -252,19 +252,6 @@ elif page=="Your Portfolio":
 
     st.markdown(f"### Holding Value £{value:,.0f}")
 
-    reratings=[1,1.25,1.5,2,2.25,2.5,3,3.5,4,4.5,5,6,7,10,15,20,25]
-
-    data=[]
-
-    for r in reratings:
-
-        new_price=price_p*r
-        val=shares_owned*(new_price/100)
-
-        data.append([f"{r}x",f"{new_price:.2f}p",f"£{val:,.0f}"])
-
-    st.table(pd.DataFrame(data,columns=["Rerating","Price","Value"]))
-
 # ---------------- DISCOVERY SIMULATOR ----------------
 
 elif page=="Discovery Simulator":
@@ -281,49 +268,46 @@ elif page=="Discovery Simulator":
     st.write("Discovery Price",f"{price_est_p:.2f}p")
     st.write("Probability Weighted",f"{expected:.2f}p")
 
-# ---------------- DRILLING ----------------
-
-elif page=="Drilling Catalysts":
-
-    df=pd.DataFrame({
-    "Company":["UOG","Eco Atlantic","Pantheon","88 Energy","ReconAfrica"],
-    "Prospect":["Walton Morant","Orinduik","Kodiak","Hickory","Kavango"],
-    "Stage":["Planning","Drilling","Testing","Drilling","Exploration"]
-    })
-
-    st.dataframe(df)
-
 # ---------------- RNS ALERTS ----------------
 
-elif page == "RNS Alerts":
+elif page=="RNS Alerts":
 
     st.subheader("RNS Announcements This Year")
 
-    ticker = ticker_symbol.split(".")[0]
+    ticker=ticker_symbol.split(".")[0]
 
-    rns_items = get_rns_this_year(ticker)
+    rns_items=get_rns_this_year(ticker)
 
-    if len(rns_items) == 0:
-        st.info("No RNS detected.")
+    if len(rns_items)==0:
+        st.info("No RNS announcements found.")
 
-    for item in rns_items:
+    for r in rns_items:
 
-        st.markdown("🚨 **RNS Announcement**")
-        st.write(item["title"])
-        st.write(item["url"])
+        title=r["title"].lower()
+
+        if any(k in title for k in ["discovery","drilling","spud","farm"]):
+
+            st.markdown("🔥 **Exploration RNS Alert**")
+
+        else:
+
+            st.markdown("🚨 **RNS Announcement**")
+
+        st.write(r["title"])
+        st.write(r["url"])
+
         st.divider()
 
 # ---------------- NEWS ----------------
 
 elif page=="Exploration Intelligence":
 
-    keywords=["discovery","drilling","well","spud","farm","seismic","hydrocarbon","petroleum system"]
+    keywords=["discovery","drilling","well","spud","farm","seismic"]
 
     feeds={
     "Energy Voice":"https://www.energyvoice.com/feed/",
     "Rigzone":"https://www.rigzone.com/news/rss/rigzone_headlines/",
-    "OilPrice":"https://oilprice.com/rss/main",
-    "World Oil":"https://www.worldoil.com/rss?feed=news"
+    "OilPrice":"https://oilprice.com/rss/main"
     }
 
     for name,url in feeds.items():
@@ -357,7 +341,7 @@ elif page=="Exploration Map":
     lat=df["Lat"],
     text=df["Company"],
     mode="markers",
-    marker=dict(size=12,color="gold")
+    marker=dict(size=12)
     ))
 
     st.plotly_chart(fig,use_container_width=True)
@@ -380,26 +364,7 @@ elif page=="Basin Bubble Map":
     lat=df["Lat"],
     text=df["Company"],
     mode="markers",
-    marker=dict(size=df["Basin"]*0.5,color="gold")
+    marker=dict(size=df["Basin"]*0.5)
     ))
 
     st.plotly_chart(fig,use_container_width=True)
-
-# ---------------- BOTTOM CONTROL BAR ----------------
-
-col1,col2,col3,col4,col5=st.columns(5)
-
-with col1:
-    st.session_state.tf=st.selectbox("TF",["1D","1W","1M","3M","6M","1Y"],index=4,label_visibility="collapsed")
-
-with col2:
-    st.session_state.ma5=st.checkbox("MA5",value=st.session_state.ma5)
-
-with col3:
-    st.session_state.ma20=st.checkbox("MA20",value=st.session_state.ma20)
-
-with col4:
-    st.session_state.ma50=st.checkbox("MA50",value=st.session_state.ma50)
-
-with col5:
-    st.session_state.vol=st.checkbox("Vol",value=st.session_state.vol)
